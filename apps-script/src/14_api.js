@@ -48,7 +48,7 @@ var Api = (function () {
     'admin.users.reset_password': route('ADMIN.USER', 'Edit', true, function (c, p) { return Account.resetByAdmin(c, p); }),
     'admin.email.get': route('ADMIN.EMAIL', 'View', false, function (c) { return Mail.getSettings(c); }),
     'admin.email.save': route('ADMIN.EMAIL', 'Edit', true, function (c, p) { return Mail.saveSettings(c, p); }),
-    'admin.email.clear_key': route('ADMIN.EMAIL', 'Edit', true, function (c) { return Mail.clearKey(c); }),
+    'admin.email.clear_secret': route('ADMIN.EMAIL', 'Edit', true, function (c, p) { return Mail.clearSecret(c, p); }),
     'admin.email.test': route('ADMIN.EMAIL', 'Execute', true, function (c, p) { return Mail.test(c, p); }),
     'admin.roles.list': route('ADMIN.ROLE', 'View', false, function (c) { return Admin.rolesList(c); }),
     'admin.roles.create': route('ADMIN.ROLE', 'Create', true, function (c, p) { return Admin.rolesCreate(c, p); }),

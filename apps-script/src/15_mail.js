@@ -1,115 +1,174 @@
 /**
  * Outgoing email and email settings.
  *
- * Providers:
- *   RESEND  - Resend HTTPS API. The API key is kept in Script Properties (encrypted at
- *             rest by Google, never written to a sheet, never returned to the browser).
- *   GOOGLE  - MailApp, sent from the Google account that deployed the web app.
+ * Two providers, as configured by the System Administrator:
+ *   SMTP    - Apps Script cannot open SMTP connections, so the message is posted to a
+ *             small relay (frontend/api/send-smtp.js, deployed on Vercel), which sends
+ *             it over SMTP. The relay checks a shared secret on every request.
+ *   RESEND  - Resend HTTPS API.
  *
- * Apps Script cannot open raw SMTP connections, so an SMTP server cannot be used
- * directly. Use a relay that offers an HTTPS sending API instead.
+ * Routing: SMTP is tried first when it is active. Resend is used when SMTP is not active,
+ * or when SMTP fails and Resend is enabled with a key.
  *
- * Routing: the active provider is tried first. If it is GOOGLE and it fails, or the
- * setting is off, mail goes through RESEND when a key is configured.
+ * Secrets (SMTP password, relay secret, Resend key) are stored encrypted in the
+ * Email_Settings sheet with Vault. They are never returned to the browser; only a
+ * "saved" flag and the last four characters of the Resend key are shown.
  *
- * Only System Administrators may change email settings.
+ * Only System Administrators may read or change email settings.
  */
 
 var Mail = (function () {
-  var PROP_RESEND_KEY = 'MAIL_RESEND_API_KEY';
   var RESEND_URL = 'https://api.resend.com/emails';
 
   function settingsRow() {
     return Store.list('Email_Settings', function () { return true; })[0] || null;
   }
 
-  function resendKey() {
-    return PropertiesService.getScriptProperties().getProperty(PROP_RESEND_KEY) || '';
+  function isOn(v) {
+    return v === true || String(v) === 'true';
   }
 
   function publicSettings(row) {
-    var key = resendKey();
     return {
       setting_id: row ? row.setting_id : '',
-      provider: row ? row.provider : 'RESEND',
-      is_active: row ? String(row.is_active) === 'true' : false,
-      from_name: row ? row.from_name : '',
+      smtp_active: row ? isOn(row.smtp_active) : false,
+      smtp_host: row ? row.smtp_host : '',
+      smtp_port: row ? Number(row.smtp_port) || 587 : 587,
+      smtp_secure: row ? isOn(row.smtp_secure) : false,
+      smtp_user: row ? row.smtp_user : '',
+      smtp_password_saved: !!(row && row.smtp_password_enc),
+      relay_url: row ? row.relay_url : '',
+      relay_secret_saved: !!(row && row.relay_secret_enc),
+      resend_active: row ? isOn(row.resend_active) : false,
+      resend_key_saved: !!(row && row.resend_api_key_enc),
+      resend_key_hint: row ? row.resend_key_hint : '',
+      from_name: row ? row.from_name : 'Hotel PMS',
       from_email: row ? row.from_email : '',
       app_url: row ? row.app_url : '',
-      resend_configured: key !== '',
-      resend_key_hint: key ? 're_••••' + key.slice(-4) : '',
       updated_at: row ? row.updated_at : '',
       version: row ? row.version : null
     };
-  }
-
-  function getSettings(ctx) {
-    Perm.authorize(ctx, 'ADMIN.EMAIL', 'View');
-    return publicSettings(settingsRow());
   }
 
   function requireSystem(ctx) {
     if (!Perm.isSystemUser(ctx.user)) throw new PmsError('FORBIDDEN', 'System Administrator only', 403);
   }
 
+  function getSettings(ctx) {
+    Perm.authorize(ctx, 'ADMIN.EMAIL', 'View');
+    requireSystem(ctx);
+    return publicSettings(settingsRow());
+  }
+
+  /** Validates and stores settings. Secret fields are encrypted; blank secret fields keep the saved value. */
   function saveSettings(ctx, p) {
     Perm.authorize(ctx, 'ADMIN.EMAIL', 'Edit');
     requireSystem(ctx);
-    var provider = Validate.oneOf(p.provider, 'provider', ['RESEND', 'GOOGLE']);
-    var active = p.is_active === true || String(p.is_active) === 'true';
-    var fromName = Validate.text(p.from_name, 'from_name', 120);
+    var before = settingsRow();
+    var prev = before || {};
+
+    var fromName = Validate.text(p.from_name || 'Hotel PMS', 'from_name', 120);
     var fromEmail = Validate.email(p.from_email);
     if (!fromEmail) throw new PmsError('VALIDATION', 'from_email is required');
     var appUrl = String(p.app_url || '').trim();
-    if (appUrl && !/^https?:\/\/[^\s]+$/.test(appUrl)) throw new PmsError('VALIDATION', 'app_url must start with https://');
+    if (appUrl && !/^https:\/\/[^\s]+$/.test(appUrl)) throw new PmsError('VALIDATION', 'app_url must start with https://');
 
-    var newKey = String(p.resend_api_key || '').trim();
-    if (newKey) {
-      if (newKey.length < 20 || newKey.indexOf(' ') !== -1) throw new PmsError('VALIDATION', 'Resend API key looks invalid');
-      PropertiesService.getScriptProperties().setProperty(PROP_RESEND_KEY, newKey);
+    var smtpActive = isOn(p.smtp_active);
+    var smtpHost = String(p.smtp_host || '').trim();
+    var smtpPort = Number(p.smtp_port || 587);
+    if (!(smtpPort >= 1 && smtpPort <= 65535 && Math.floor(smtpPort) === smtpPort)) {
+      throw new PmsError('VALIDATION', 'smtp_port must be a whole number from 1 to 65535');
     }
-    if (active && provider === 'RESEND' && !resendKey()) {
-      throw new PmsError('VALIDATION', 'Add a Resend API key before activating Resend');
-    }
+    var smtpSecure = isOn(p.smtp_secure);
+    var smtpUser = String(p.smtp_user || '').trim();
+    var relayUrl = String(p.relay_url || '').trim();
+    if (relayUrl && !/^https:\/\/[^\s]+$/.test(relayUrl)) throw new PmsError('VALIDATION', 'relay_url must start with https://');
 
     var patch = {
-      provider: provider,
-      is_active: active ? 'true' : 'false',
-      from_name: fromName,
-      from_email: fromEmail,
-      app_url: appUrl,
-      resend_key_hint: resendKey() ? resendKey().slice(-4) : ''
+      smtp_host: smtpHost, smtp_port: String(smtpPort), smtp_secure: smtpSecure ? 'true' : 'false',
+      smtp_user: smtpUser, relay_url: relayUrl, from_name: fromName, from_email: fromEmail, app_url: appUrl
     };
-    var before = settingsRow();
+    var smtpPassword = String(p.smtp_password || '');
+    if (smtpPassword) patch.smtp_password_enc = Vault.encrypt(smtpPassword);
+    var relaySecret = String(p.relay_secret || '').trim();
+    if (relaySecret) {
+      if (relaySecret.length < 24) throw new PmsError('VALIDATION', 'relay_secret must be at least 24 characters');
+      patch.relay_secret_enc = Vault.encrypt(relaySecret);
+    }
+    var resendKey = String(p.resend_api_key || '').trim();
+    if (resendKey) {
+      if (!/^re_[A-Za-z0-9_]{10,}$/.test(resendKey)) throw new PmsError('VALIDATION', 'Resend API key looks invalid');
+      patch.resend_api_key_enc = Vault.encrypt(resendKey);
+      patch.resend_key_hint = resendKey.slice(-4);
+    }
+
+    var smtpPasswordSaved = !!(patch.smtp_password_enc || prev.smtp_password_enc);
+    var relaySecretSaved = !!(patch.relay_secret_enc || prev.relay_secret_enc);
+    var resendSaved = !!(patch.resend_api_key_enc || prev.resend_api_key_enc);
+    var resendActive = isOn(p.resend_active);
+
+    if (smtpActive && (!smtpHost || !smtpUser || !smtpPasswordSaved || !relayUrl || !relaySecretSaved)) {
+      throw new PmsError('VALIDATION', 'To turn SMTP on, enter host, user, password, relay URL and relay secret');
+    }
+    if (resendActive && !resendSaved) throw new PmsError('VALIDATION', 'To turn Resend on, enter an API key');
+
+    patch.smtp_active = smtpActive ? 'true' : 'false';
+    patch.resend_active = resendActive ? 'true' : 'false';
+
     var result;
     if (before) {
       result = Store.update('Email_Settings', before.setting_id, patch, p.version == null ? null : p.version, ctx.user.user_id);
     } else {
       result = { after: Store.insert('Email_Settings', patch, ctx.user.user_id) };
     }
-    // The audit trail records the change without any secret value.
+    // The audit trail records what changed, never the values of secrets.
     Audit.record(ctx, 'ADMIN.EMAIL', 'SAVE', 'Email_Settings', result.after.setting_id,
-      before ? { provider: before.provider, is_active: before.is_active } : null,
-      { provider: provider, is_active: active ? 'true' : 'false', new_key_set: !!newKey }, null);
+      before ? { smtp_active: before.smtp_active, resend_active: before.resend_active } : null,
+      { smtp_active: patch.smtp_active, resend_active: patch.resend_active,
+        secrets_changed: Object.keys(patch).filter(function (k) { return /_enc$/.test(k); }) }, null);
     return publicSettings(result.after);
   }
 
-  function clearKey(ctx) {
+  var SECRET_FIELDS = { smtp_password: 'smtp_password_enc', relay_secret: 'relay_secret_enc', resend: 'resend_api_key_enc' };
+
+  /** Removes one saved secret and turns off the provider that needs it. */
+  function clearSecret(ctx, p) {
     Perm.authorize(ctx, 'ADMIN.EMAIL', 'Edit');
     requireSystem(ctx);
-    PropertiesService.getScriptProperties().deleteProperty(PROP_RESEND_KEY);
+    var field = SECRET_FIELDS[String(p.which)];
+    if (!field) throw new PmsError('VALIDATION', 'which must be smtp_password, relay_secret or resend');
     var row = settingsRow();
-    if (row) {
-      Store.update('Email_Settings', row.setting_id,
-        { resend_key_hint: '', is_active: row.provider === 'RESEND' ? 'false' : row.is_active }, null, ctx.user.user_id);
-    }
-    Audit.record(ctx, 'ADMIN.EMAIL', 'CLEAR_KEY', 'Email_Settings', row ? row.setting_id : '', null, { cleared: true }, null);
-    return publicSettings(settingsRow());
+    if (!row) throw new PmsError('NOT_FOUND', 'Email settings are not saved yet', 404);
+    var patch = {};
+    patch[field] = '';
+    if (field === 'resend_api_key_enc') { patch.resend_key_hint = ''; patch.resend_active = 'false'; }
+    if (field === 'smtp_password_enc' || field === 'relay_secret_enc') patch.smtp_active = 'false';
+    var result = Store.update('Email_Settings', row.setting_id, patch, null, ctx.user.user_id);
+    Audit.record(ctx, 'ADMIN.EMAIL', 'CLEAR_SECRET', 'Email_Settings', row.setting_id, null, { which: p.which }, null);
+    return publicSettings(result.after);
   }
 
-  function sendResend(from, msg) {
-    var key = resendKey();
-    if (!key) throw new Error('Resend is not configured');
+  function sendSmtp(from, msg, row) {
+    var relaySecret = Vault.decrypt(row.relay_secret_enc);
+    var smtpPassword = Vault.decrypt(row.smtp_password_enc);
+    var res = UrlFetchApp.fetch(row.relay_url, {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { 'X-Relay-Secret': relaySecret },
+      payload: JSON.stringify({
+        from: from, to: msg.to, subject: msg.subject, html: msg.html, text: msg.text,
+        smtp: { host: row.smtp_host, port: Number(row.smtp_port), secure: isOn(row.smtp_secure),
+          user: row.smtp_user, pass: smtpPassword }
+      }),
+      muteHttpExceptions: true
+    });
+    var code = res.getResponseCode();
+    if (code !== 200) throw new Error('SMTP relay responded with status ' + code);
+    return { sent: true, provider: 'SMTP' };
+  }
+
+  function sendResend(from, msg, row) {
+    var key = Vault.decrypt(row.resend_api_key_enc);
     var fromHeader = from.name ? from.name + ' <' + from.email + '>' : from.email;
     var res = UrlFetchApp.fetch(RESEND_URL, {
       method: 'post',
@@ -123,33 +182,27 @@ var Mail = (function () {
     return { sent: true, provider: 'RESEND' };
   }
 
-  function sendGoogle(from, msg) {
-    MailApp.sendEmail({
-      to: msg.to, subject: msg.subject, htmlBody: msg.html, body: msg.text,
-      name: from.name || 'Hotel PMS', replyTo: from.email
-    });
-    return { sent: true, provider: 'GOOGLE' };
-  }
-
   /** Sends one message. Never throws: callers get { sent, provider, reason }. */
   function send(msg) {
     var row = settingsRow();
-    var from = { name: row ? row.from_name : '', email: row ? row.from_email : '' };
-    var active = row && String(row.is_active) === 'true' ? row.provider : null;
-    if (!from.email) return { sent: false, provider: active || 'NONE', reason: 'Sender email is not configured' };
-
+    if (!row || !row.from_email) return { sent: false, provider: 'NONE', reason: 'Sender email is not configured' };
+    var from = { name: row.from_name, email: row.from_email };
     var attempts = [];
-    if (active === 'GOOGLE') attempts.push(sendGoogle);
-    attempts.push(sendResend);
-    var lastReason = 'No email provider is active';
+    if (isOn(row.smtp_active)) attempts.push({ name: 'SMTP', run: sendSmtp });
+    if (isOn(row.resend_active)) attempts.push({ name: 'RESEND', run: sendResend });
+    if (!attempts.length) return { sent: false, provider: 'NONE', reason: 'No email provider is active' };
+
+    var lastReason = '';
+    var lastProvider = 'NONE';
     for (var i = 0; i < attempts.length; i++) {
+      lastProvider = attempts[i].name;
       try {
-        return attempts[i](from, msg);
+        return attempts[i].run(from, msg, row);
       } catch (err) {
         lastReason = String(err && err.message ? err.message : err);
       }
     }
-    return { sent: false, provider: active || 'NONE', reason: lastReason };
+    return { sent: false, provider: lastProvider, reason: lastReason };
   }
 
   function test(ctx, p) {
@@ -164,8 +217,8 @@ var Mail = (function () {
   }
 
   return {
-    getSettings: getSettings, saveSettings: saveSettings, clearKey: clearKey,
-    send: send, test: test, settingsRow: settingsRow, resendKey: resendKey
+    getSettings: getSettings, saveSettings: saveSettings, clearSecret: clearSecret,
+    send: send, test: test, settingsRow: settingsRow
   };
 })();
 
@@ -183,7 +236,7 @@ var Templates = (function () {
         'text-decoration:none;padding:12px 22px;border-radius:6px;font-weight:600;display:inline-block">' +
         esc(opts.button.label) + '</a></p>'
       : '';
-    var html = '<!doctype html><html><body style="margin:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;color:#0f172a">' +
+    return '<!doctype html><html><body style="margin:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;color:#0f172a">' +
       '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:32px 12px"><tr><td align="center">' +
       '<table role="presentation" width="560" cellspacing="0" cellpadding="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:10px;overflow:hidden">' +
       '<tr><td style="background:#0f172a;color:#ffffff;padding:20px 28px;font-size:18px;font-weight:700">' + esc(opts.appName) + '</td></tr>' +
@@ -194,7 +247,6 @@ var Templates = (function () {
       '<tr><td style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;line-height:18px">' +
       esc(opts.footer) + '</td></tr>' +
       '</table></td></tr></table></body></html>';
-    return html;
   }
 
   function credentials(v) {

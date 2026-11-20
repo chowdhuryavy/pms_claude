@@ -24,11 +24,15 @@
 - Changing or resetting a password signs out the user's other sessions.
 - Temporary passwords are sent only by email. They are not written to any sheet or to the
   audit log, and the API never returns them.
-- Email API keys are stored in Script Properties. Google encrypts these at rest. They are
-  never returned to the browser; only the last four characters are shown.
-- Apps Script has no built-in encryption library. The protection is Google's storage
-  encryption plus access control: only people with editor access to the Apps Script
-  project can read the key.
+- SMTP password, relay secret and Resend key are stored encrypted in the Email_Settings
+  sheet (Vault in `17_vault.js`). The master key is in Script Properties. The browser
+  only receives "saved" flags and the last four characters of the Resend key.
+- Apps Script has no AES library, so Vault uses HMAC-SHA256 as a keystream with an
+  encrypt-then-MAC tag. Tampered values are refused. It is not a vetted AES implementation.
+- If the master key (`VAULT_MASTER_KEY` in Script Properties) is lost, stored secrets
+  cannot be decrypted and must be entered again. Keep a copy in a password manager.
+- SMTP is sent through the Vercel relay (`frontend/api/send-smtp.js`). The relay accepts
+  requests only with the shared secret, which is `MAIL_RELAY_SECRET` in Vercel.
 
 ## Secrets and configuration
 
@@ -49,7 +53,7 @@
 - The frontend keeps the session token in `sessionStorage`. A script injection
   could read it. The Content Security Policy in `frontend/vercel.json` reduces this risk.
 - Logs of every login attempt are not yet exported to a SIEM.
-- Plain SMTP is not supported, because Apps Script cannot open SMTP connections.
+- SMTP credentials pass through the Vercel relay during each send. Use a relay you control.
 
 ## Reporting a vulnerability
 

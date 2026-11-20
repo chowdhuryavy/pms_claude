@@ -95,55 +95,110 @@ test('admin reset emails a new temporary password and signs the user out everywh
 
 test('when no provider works, creation still succeeds and reports why the email was not sent', () => {
   const { env, pid, roleId } = world();
-  env.call('admin.email.clear_key', {});
-  env.call('admin.email.save', { provider: 'RESEND', is_active: false, from_name: 'Hotel PMS',
-    from_email: 'no-reply@example.com' });
+  env.call('admin.email.clear_secret', { which: 'resend' });
   const res = env.call('admin.users.create', { username: 'eve', display_name: 'Eve', email: 'eve@example.com',
     role_ids: [roleId], property_ids: [pid] });
   assert.equal(res.email_sent, false);
-  assert.match(res.reason, /Resend is not configured|No email provider/);
+  assert.match(res.reason, /No email provider is active/);
   assert.equal(env.outbox.filter((m) => m.to === 'eve@example.com').length, 0);
 });
 
-test('active Google provider is used first, and Resend is the fallback when it fails', () => {
-  const { env, pid, roleId } = world();
-  env.call('admin.email.save', { provider: 'GOOGLE', is_active: true, from_name: 'Hotel PMS',
-    from_email: 'no-reply@example.com' });
-  env.call('admin.users.create', { username: 'fay', display_name: 'Fay', email: 'fay@example.com',
-    role_ids: [roleId], property_ids: [pid] });
-  assert.equal(env.outbox[env.outbox.length - 1].provider, 'GOOGLE');
+const SMTP = {
+  smtp_active: true, smtp_host: 'smtp.example.com', smtp_port: 587, smtp_secure: false,
+  smtp_user: 'mailer@example.com', smtp_password: 'smtp-pass-value-1',
+  relay_url: 'https://pms.example.com/api/send-smtp', relay_secret: 'relay-secret-for-tests-0123456789'
+};
 
-  env.mail.googleFails = true;
+test('active SMTP is used first through the relay, and the relay receives the decrypted credentials', () => {
+  const { env, pid, roleId } = world();
+  env.call('admin.email.save', Object.assign({ from_email: 'no-reply@example.com', from_name: 'Hotel PMS',
+    resend_active: true }, SMTP));
+  const res = env.call('admin.users.create', { username: 'fay', display_name: 'Fay', email: 'fay@example.com',
+    role_ids: [roleId], property_ids: [pid] });
+  assert.equal(res.provider, 'SMTP');
+  const sent = env.outbox[env.outbox.length - 1];
+  assert.equal(sent.provider, 'SMTP');
+  assert.equal(sent.relaySecret, SMTP.relay_secret);
+  assert.equal(sent.smtp.pass, 'smtp-pass-value-1');
+  assert.equal(sent.smtp.host, 'smtp.example.com');
+  assert.equal(sent.to, 'fay@example.com');
+});
+
+test('when SMTP fails, Resend is used as the fallback', () => {
+  const { env, pid, roleId } = world();
+  env.call('admin.email.save', Object.assign({ from_email: 'no-reply@example.com', resend_active: true }, SMTP));
+  env.mail.relayStatus = 503;
   const res = env.call('admin.users.create', { username: 'gus', display_name: 'Gus', email: 'gus@example.com',
     role_ids: [roleId], property_ids: [pid] });
   assert.equal(res.provider, 'RESEND');
   assert.equal(env.outbox[env.outbox.length - 1].provider, 'RESEND');
 });
 
-test('email settings never return the API key, only a hint', () => {
+test('SMTP cannot be turned on without a password, host, relay URL and relay secret', () => {
   const { env } = world();
+  assert.throws(() => env.call('admin.email.save', { from_email: 'no-reply@example.com', smtp_active: true,
+    smtp_host: 'smtp.example.com', smtp_user: 'u', smtp_port: 587, relay_url: 'https://x.example.com/api/send-smtp' }),
+  { code: 'VALIDATION' });
+});
+
+test('email settings never return secrets, only saved flags and the Resend key hint', () => {
+  const { env } = world();
+  env.call('admin.email.save', Object.assign({ from_email: 'no-reply@example.com', resend_active: true }, SMTP));
   const s = env.call('admin.email.get', {});
-  assert.equal(s.resend_configured, true);
-  assert.equal(s.resend_key_hint, 're_••••cdef');
-  assert.equal(JSON.stringify(s).includes('0123456789abcdef'), false);
-  assert.equal(JSON.stringify(env.backend.sheets).includes('0123456789abcdef'), false);
+  assert.equal(s.resend_key_saved, true);
+  assert.equal(s.resend_key_hint, 'cdef');
+  assert.equal(s.smtp_password_saved, true);
+  assert.equal(s.relay_secret_saved, true);
+  const json = JSON.stringify(s);
+  assert.equal(json.includes('smtp-pass-value-1'), false);
+  assert.equal(json.includes('0123456789abcdef'), false);
+  assert.equal(json.includes(SMTP.relay_secret), false);
+});
+
+test('secrets are stored encrypted in the sheet, not in plain text', () => {
+  const { env } = world();
+  env.call('admin.email.save', Object.assign({ from_email: 'no-reply@example.com', resend_active: true }, SMTP));
+  const dump = JSON.stringify(env.backend.sheets);
+  assert.equal(dump.includes('smtp-pass-value-1'), false);
+  assert.equal(dump.includes('re_test_key_0123456789abcdef'), false);
+  assert.equal(dump.includes(SMTP.relay_secret), false);
+  const row = env.backend.sheets.Email_Settings[0];
+  assert.match(row.smtp_password_enc, /^v1\.[0-9a-f]{32}\./);
+});
+
+test('vault round-trips secrets and refuses a tampered value', () => {
+  const { env } = world();
+  const enc = env.ctx.Vault.encrypt('hello secret');
+  assert.equal(env.ctx.Vault.decrypt(enc), 'hello secret');
+  const parts = enc.split('.');
+  const flipped = parts[2].charAt(0) === 'A' ? 'B' + parts[2].slice(1) : 'A' + parts[2].slice(1);
+  const tampered = [parts[0], parts[1], flipped, parts[3]].join('.');
+  assert.throws(() => env.ctx.Vault.decrypt(tampered), /integrity/);
+  assert.throws(() => env.ctx.Vault.decrypt('not-a-secret'), /unknown format/);
+});
+
+test('clearing the SMTP password turns SMTP off', () => {
+  const { env } = world();
+  env.call('admin.email.save', Object.assign({ from_email: 'no-reply@example.com', resend_active: true }, SMTP));
+  const s = env.call('admin.email.clear_secret', { which: 'smtp_password' });
+  assert.equal(s.smtp_password_saved, false);
+  assert.equal(s.smtp_active, false);
 });
 
 test('only System Administrators can change email settings; others get NOT_FOUND', () => {
   const { env, pid } = world();
   const token = userAdmin(env, pid);
   assert.throws(() => env.call('admin.email.get', {}, token), { code: 'NOT_FOUND' });
-  assert.throws(() => env.call('admin.email.save', { provider: 'RESEND', is_active: false, from_name: 'X',
-    from_email: 'x@example.com' }, token), { code: 'NOT_FOUND' });
+  assert.throws(() => env.call('admin.email.save', { from_email: 'x@example.com' }, token), { code: 'NOT_FOUND' });
 });
 
 test('a user without email cannot be created, and an active Resend setting needs a key', () => {
   const { env, pid, roleId } = world();
   assert.throws(() => env.call('admin.users.create', { username: 'hal', display_name: 'Hal',
     role_ids: [roleId], property_ids: [pid] }), { code: 'VALIDATION' });
-  env.call('admin.email.clear_key', {});
-  assert.throws(() => env.call('admin.email.save', { provider: 'RESEND', is_active: true, from_name: 'X',
-    from_email: 'x@example.com' }), { code: 'VALIDATION' });
+  env.call('admin.email.clear_secret', { which: 'resend' });
+  assert.throws(() => env.call('admin.email.save', { from_email: 'x@example.com', resend_active: true }),
+    { code: 'VALIDATION' });
 });
 
 test('display names are escaped in the email body', () => {
@@ -159,5 +214,6 @@ test('test email reports success through the configured provider', () => {
   const { env } = world();
   const res = env.call('admin.email.test', { to: 'ops@example.com' });
   assert.equal(res.sent, true);
+  assert.equal(res.provider, 'RESEND');
   assert.equal(env.outbox[env.outbox.length - 1].subject, 'Test email from Hotel PMS');
 });

@@ -79,7 +79,7 @@ Actions are grouped by module. The full list with required functions is in the
 
 - `auth.login`, `auth.logout`, `auth.me`, `auth.change_password` (`current_password`, `new_password`)
 - `admin.users.reset_password` (`user_id`, `version`): new temporary password, emailed, all sessions revoked
-- `admin.email.get`, `admin.email.save`, `admin.email.clear_key`, `admin.email.test` (System Administrator only for writes)
+- `admin.email.get`, `admin.email.save`, `admin.email.clear_secret` (`which`: smtp_password, relay_secret, resend), `admin.email.test` (System Administrator only)
 - `admin.*`: organizations, properties, users, roles, permissions, flags, audit
 - `config.*`: room types, rooms, config items
 - `res.*`: availability, create, get, list, modify, cancel, no-show, guest search

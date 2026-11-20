@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Multi-property hotel PMS and ERP. Google Apps Script API, Google Sheets database, React frontend.",
   "scripts": {
-    "test": "node --test tests/unit.test.js tests/flows.test.js tests/mail_account.test.js",
+    "test": "node --test tests/unit.test.js tests/flows.test.js tests/mail_account.test.js tests/relay.test.js",
     "schema:doc": "node scripts/print-schema.js > docs/SCHEMA.md"
   },
   "engines": { "node": ">=20" },

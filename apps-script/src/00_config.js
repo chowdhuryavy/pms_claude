@@ -54,8 +54,9 @@ var SCHEMA = {
   },
   Email_Settings: {
     domain: 'DB_CORE', key: 'setting_id',
-    headers: ['setting_id', 'provider', 'is_active', 'from_name', 'from_email', 'app_url', 'resend_key_hint',
-      'created_at', 'created_by', 'updated_at', 'updated_by', 'version']
+    headers: ['setting_id', 'smtp_active', 'smtp_host', 'smtp_port', 'smtp_secure', 'smtp_user', 'smtp_password_enc',
+      'relay_url', 'relay_secret_enc', 'resend_active', 'resend_api_key_enc', 'resend_key_hint',
+      'from_name', 'from_email', 'app_url', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version']
   },
   Roles: {
     domain: 'DB_CORE', key: 'role_id',

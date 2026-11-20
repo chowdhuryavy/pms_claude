@@ -13,7 +13,7 @@ const FILES = [
   '00_config.js', '01_core.js', '02_store.js', '03_sheets_backend.js', '04_auth.js',
   '05_audit.js', '06_admin.js', '07_config_svc.js', '08_reservations.js', '09_cashier.js',
   '10_frontoffice.js', '11_night_audit.js', '12_reports.js', '13_setup.js', '14_api.js',
-  '15_mail.js', '16_account.js'
+  '15_mail.js', '16_account.js', '17_vault.js'
 ];
 
 function signedBytes(buffer) {
@@ -43,20 +43,23 @@ function createEnv() {
   const cache = new Map();
   // Every message the app tries to send. Tests read temporary passwords from here.
   const outbox = [];
-  const mail = { resendStatus: 200, googleFails: false };
+  const mail = { resendStatus: 200, relayStatus: 200 };
   const sandbox = {
     UrlFetchApp: {
       fetch(url, opts) {
         const body = JSON.parse(opts.payload);
+        if (url.endsWith('/api/send-smtp')) {
+          if (opts.headers['X-Relay-Secret'] !== mail.relaySecret) return { getResponseCode: () => 401 };
+          const status = mail.relayStatus;
+          if (status === 200) {
+            outbox.push({ provider: 'SMTP', url, relaySecret: opts.headers['X-Relay-Secret'], smtp: body.smtp,
+              to: body.to, from: body.from, subject: body.subject, html: body.html, text: body.text });
+          }
+          return { getResponseCode: () => status };
+        }
         outbox.push({ provider: 'RESEND', url, auth: opts.headers.Authorization, to: body.to[0],
           from: body.from, subject: body.subject, html: body.html, text: body.text });
         return { getResponseCode: () => mail.resendStatus, getContentText: () => '' };
-      }
-    },
-    MailApp: {
-      sendEmail(m) {
-        if (mail.googleFails) throw new Error('MailApp quota exceeded');
-        outbox.push({ provider: 'GOOGLE', to: m.to, subject: m.subject, html: m.htmlBody, text: m.body, from: m.name });
       }
     },
     console: { log() {}, error() {}, warn() {} },
@@ -65,7 +68,15 @@ function createEnv() {
       getUuid: () => crypto.randomUUID(),
       DigestAlgorithm: { SHA_256: 'SHA_256' },
       Charset: { UTF_8: 'UTF_8' },
-      computeDigest: (alg, text) => signedBytes(crypto.createHash('sha256').update(String(text), 'utf8').digest())
+      computeDigest: (alg, text) => signedBytes(crypto.createHash('sha256').update(String(text), 'utf8').digest()),
+      computeHmacSha256Signature: (value, key) =>
+        signedBytes(crypto.createHmac('sha256', String(key)).update(String(value), 'utf8').digest()),
+      newBlob: (data) => {
+        const bytes = typeof data === 'string' ? Buffer.from(data, 'utf8') : Buffer.from(data.map((b) => b & 0xff));
+        return { getBytes: () => signedBytes(bytes), getDataAsString: () => bytes.toString('utf8') };
+      },
+      base64Encode: (bytes) => Buffer.from(bytes.map((b) => b & 0xff)).toString('base64'),
+      base64Decode: (text) => signedBytes(Buffer.from(String(text), 'base64'))
     },
     PropertiesService: {
       getScriptProperties: () => ({
@@ -92,6 +103,7 @@ function createEnv() {
   }
   const backend = memoryBackend();
   sandbox.Store.setBackend(backend);
+  mail.relaySecret = 'relay-secret-for-tests-0123456789';
   return { ctx: sandbox, backend, props, cache, outbox, mail };
 }
 
@@ -108,8 +120,8 @@ function bootstrap() {
   env.orgId = org.org_id;
   // Resend is configured by default, so user creation and resets send mail in tests.
   env.call('admin.email.save', {
-    provider: 'RESEND', is_active: true, from_name: 'Hotel PMS', from_email: 'no-reply@example.com',
-    app_url: 'https://pms.example.com', resend_api_key: 're_test_key_0123456789abcdef'
+    from_name: 'Hotel PMS', from_email: 'no-reply@example.com', app_url: 'https://pms.example.com',
+    resend_active: true, resend_api_key: 're_test_key_0123456789abcdef', smtp_active: false
   });
   // The most recent temporary password sent to an address. Returns null if none.
   env.tempPassword = (username) => {
