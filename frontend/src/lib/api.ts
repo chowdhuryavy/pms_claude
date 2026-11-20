@@ -37,9 +37,21 @@ export async function callApi<T = unknown>(
       })
     });
   } catch {
-    throw new ApiError('NETWORK', 'Cannot reach the server. Check your connection and try again.');
+    throw new ApiError(
+      'NETWORK',
+      'Cannot reach the server. Check your connection. If it persists, the Apps Script web app may not be shared with "Anyone".'
+    );
   }
-  const body = (await res.json()) as { ok: boolean; data?: T; error?: { code: string; message: string } };
+  let body: { ok: boolean; data?: T; error?: { code: string; message: string } };
+  try {
+    body = (await res.json()) as typeof body;
+  } catch {
+    // Usually a Google sign-in page: the web app is not shared with "Anyone".
+    throw new ApiError(
+      'BAD_RESPONSE',
+      'The server did not return data. Check that the Apps Script web app is deployed with access set to "Anyone".'
+    );
+  }
   if (!body.ok) {
     const code = body.error?.code ?? 'UNKNOWN';
     if (code === 'UNAUTHENTICATED') clearToken();

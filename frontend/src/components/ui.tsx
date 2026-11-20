@@ -125,14 +125,19 @@ export function Toggle({ checked, onChange, label, disabled = false }: {
 }
 
 /** Eye button that shows or hides a secret input. */
-export function SecretInput({ value, onChange, placeholder, autoComplete, id, required, disabled }: {
+export function SecretInput({ value, onChange, placeholder, autoComplete, id, required, disabled, leftIcon }: {
   value: string; onChange: (v: string) => void; placeholder?: string; autoComplete?: string;
-  id?: string; required?: boolean; disabled?: boolean;
+  id?: string; required?: boolean; disabled?: boolean; leftIcon?: IconName;
 }) {
   const [shown, setShown] = useState(false);
   return (
-    <div className="relative">
-      <input id={id} type={shown ? 'text' : 'password'} className={`${inputClass} pr-10`} value={value}
+    <div className="group relative">
+      {leftIcon && (
+        <span className="pointer-events-none absolute inset-y-0 left-3 my-auto grid h-5 w-5 place-items-center text-slate-400 transition group-focus-within:text-slate-900">
+          <Icon name={leftIcon} size={16} />
+        </span>
+      )}
+      <input id={id} type={shown ? 'text' : 'password'} className={`${inputClass} ${leftIcon ? 'pl-10' : ''} pr-10`} value={value}
         onChange={(e) => onChange(e.target.value)} placeholder={placeholder} autoComplete={autoComplete}
         required={required} disabled={disabled} />
       <button type="button" onClick={() => setShown(!shown)} aria-label={shown ? 'Hide' : 'Show'}
