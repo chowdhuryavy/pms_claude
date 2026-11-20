@@ -5,15 +5,15 @@ export function Panel({ title, actions, children, icon }: {
   title: string; actions?: ReactNode; children: ReactNode; icon?: IconName;
 }) {
   return (
-    <section className="anim-fade-up mb-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition-shadow duration-300 hover:shadow-md">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
-        <h2 className="flex items-center gap-2 text-lg font-semibold">
-          {icon && <span className="grid h-8 w-8 place-items-center rounded-md bg-slate-100 text-slate-700"><Icon name={icon} size={16} /></span>}
+    <section className="anim-fade-up mb-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow duration-300 hover:shadow-md">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-4 py-3.5 md:px-5">
+        <h2 className="flex items-center gap-2.5 text-base font-semibold text-slate-900">
+          {icon && <span className="grid h-8 w-8 place-items-center rounded-lg bg-slate-900 text-white shadow-sm"><Icon name={icon} size={16} /></span>}
           {title}
         </h2>
         {actions}
       </div>
-      {children}
+      <div className="p-4 md:p-5">{children}</div>
     </section>
   );
 }
@@ -88,7 +88,7 @@ export interface TabDef { id: string; label: string; icon: IconName }
 /** Tab bar with a sliding underline. Keyboard users can move between tabs with the arrow keys. */
 export function Tabs({ tabs, active, onChange }: { tabs: TabDef[]; active: string; onChange: (id: string) => void }) {
   return (
-    <div role="tablist" className="mb-6 flex flex-wrap gap-1 border-b border-slate-200">
+    <div role="tablist" className="mb-6 flex max-w-full flex-wrap gap-1 rounded-xl bg-slate-100 p-1">
       {tabs.map((t) => {
         const selected = t.id === active;
         return (
@@ -100,10 +100,9 @@ export function Tabs({ tabs, active, onChange }: { tabs: TabDef[]; active: strin
               const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
               onChange(next.id);
             }}
-            className={`group relative flex items-center gap-2 rounded-t-md px-4 py-2.5 text-sm font-medium transition-colors duration-200 hover:bg-slate-100 ${selected ? 'text-slate-900' : 'text-slate-500 hover:text-slate-800'}`}>
+            className={`group flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-all duration-200 ${selected ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:bg-white/70 hover:text-slate-900'}`}>
             <Icon name={t.icon} size={16} className={selected ? 'text-slate-900' : 'text-slate-400 transition-colors group-hover:text-slate-700'} />
             {t.label}
-            <span className={`absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-slate-900 transition-all duration-300 ${selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-30'}`} />
           </button>
         );
       })}
@@ -151,14 +150,21 @@ export function SecretInput({ value, onChange, placeholder, autoComplete, id, re
 export function Table<T>({ columns, rows, empty = 'No records', rowKey }: {
   columns: Column<T>[]; rows: T[]; empty?: string; rowKey: (row: T) => string;
 }) {
-  if (rows.length === 0) return <p className="text-sm text-slate-500">{empty}</p>;
+  if (rows.length === 0) {
+    return (
+      <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50/60 px-4 py-8 text-center text-sm text-slate-500">
+        <span className="grid h-9 w-9 place-items-center rounded-full bg-white text-slate-400 shadow-sm"><Icon name="info" size={18} /></span>
+        {empty}
+      </div>
+    );
+  }
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto rounded-lg border border-slate-200">
       <table className="min-w-full divide-y divide-slate-200 text-sm">
         <thead className="bg-slate-50">
           <tr>
             {columns.map((c) => (
-              <th key={c.header} className={`px-3 py-2 font-medium text-slate-600 ${c.align === 'right' ? 'text-right' : 'text-left'}`}>
+              <th key={c.header} className={`whitespace-nowrap px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500 ${c.align === 'right' ? 'text-right' : 'text-left'}`}>
                 {c.header}
               </th>
             ))}
@@ -166,7 +172,7 @@ export function Table<T>({ columns, rows, empty = 'No records', rowKey }: {
         </thead>
         <tbody className="divide-y divide-slate-100">
           {rows.map((row) => (
-            <tr key={rowKey(row)} className="anim-fade-up transition-colors duration-150 hover:bg-slate-50">
+            <tr key={rowKey(row)} className="anim-fade-up bg-white transition-colors duration-150 hover:bg-slate-50 even:bg-slate-50/40">
               {columns.map((c) => (
                 <td key={c.header} className={`px-3 py-2 ${c.align === 'right' ? 'text-right tabular-nums' : ''}`}>
                   {c.render(row)}
