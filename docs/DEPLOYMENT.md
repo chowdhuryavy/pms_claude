@@ -18,14 +18,31 @@
 2. Set the environment variable `VITE_API_URL` to the `/exec` URL.
 3. Deploy. `vercel.json` sets the build command, output folder and security headers.
 
-## 3. Continuous deployment of the backend
+## 3. Updating the backend
 
-The workflow `.github/workflows/deploy-apps-script.yml` pushes `apps-script/` with clasp
-on each change to `main`. Add these repository secrets first:
+The workflow `.github/workflows/deploy-apps-script.yml` is the updater. Apps Script
+allows about 200 versions per project, so the two kinds of update are kept apart:
 
-- `CLASPRC_JSON`: contents of a local `~/.clasprc.json` after `clasp login`.
-- `APPS_SCRIPT_ID`: the Apps Script project ID.
-- `APPS_SCRIPT_DEPLOYMENT_ID` (optional): the web app deployment to update.
+- **Small change (no new version):** push to `main` with a change under `apps-script/`.
+  The code is uploaded to the project's HEAD. Test it at the **/dev** URL of the
+  deployment (Deploy > Test deployments). The live **/exec** URL is unchanged.
+- **Release (new version):** GitHub > Actions > Deploy Apps Script > Run workflow,
+  set `mode` to `release` and enter a short note. This publishes a new version to the
+  existing /exec deployment, so the frontend picks it up.
+
+Batch several small changes into one release. Do not release after every commit.
+
+One-time setup: add these repository secrets.
+
+- `CLASPRC_JSON`: contents of `~/.clasprc.json` after `clasp login` on your machine.
+- `APPS_SCRIPT_ID`: the Apps Script project ID (Project Settings).
+- `APPS_SCRIPT_DEPLOYMENT_ID`: the ID of the web app deployment (Manage deployments).
+
+The `production` environment in GitHub can require your approval before each run.
+
+Files that are not part of the Apps Script project: `scripts/`, `tests/` and the
+frontend configs are Node-only and must not be copied into the Apps Script editor.
+Only `apps-script/src/*.js` and `appsscript.json` are uploaded.
 
 ## 4. Verification checklist
 
