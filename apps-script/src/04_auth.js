@@ -183,6 +183,14 @@ var Perm = (function () {
       if (!grants[p.function_id]) grants[p.function_id] = {};
       levels.forEach(function (l) { grants[p.function_id][l] = true; });
     });
+    // The System Administrator holds every registered function, so new modules
+    // work without a data migration. Property scope and module flags still apply.
+    if (isSystemUser(user)) {
+      Object.keys(FUNCTIONS).forEach(function (fn) {
+        if (!grants[fn]) grants[fn] = {};
+        grants[fn]['Full Access'] = true;
+      });
+    }
     return grants;
   }
 

@@ -98,7 +98,22 @@ var Api = (function () {
     'rpt.flash': route(null, null, false, function (c, p) { return Reports.flash(c, p); }),
     'rpt.daily_revenue': route(null, null, false, function (c, p) { return Reports.dailyRevenue(c, p); }),
     'rpt.daily_revenue_csv': route(null, null, false, function (c, p) { return Reports.dailyRevenueCsv(c, p); }),
-    'rpt.guest_ledger': route(null, null, false, function (c, p) { return Reports.guestLedger(c, p); })
+    'rpt.guest_ledger': route(null, null, false, function (c, p) { return Reports.guestLedger(c, p); }),
+
+    'approvals.list': route('APPROVAL.QUEUE', 'View', false, function (c, p) { return Approvals.list(c, p); }),
+    'approvals.approve': route('APPROVAL.QUEUE', 'Approve', true, function (c, p) { return Approvals.approve(c, p); }),
+    'approvals.reject': route('APPROVAL.QUEUE', 'Approve', true, function (c, p) { return Approvals.reject(c, p); }),
+
+    'eng.requests.list': route('ENG.REQUEST', 'View', false, function (c, p) { return Engineering.list(c, p); }),
+    'eng.requests.create': route('ENG.REQUEST', 'Create', true, function (c, p) { return Engineering.create(c, p); }),
+    'eng.requests.update': route('ENG.REQUEST', 'Edit', true, function (c, p) { return Engineering.update(c, p); }),
+
+    'hk.tasks.list': route('HK.TASKS', 'View', false, function (c, p) { return Housekeeping.tasksList(c, p); }),
+    'hk.tasks.create': route('HK.TASKS', 'Create', true, function (c, p) { return Housekeeping.tasksCreate(c, p); }),
+    'hk.tasks.complete': route('HK.TASKS', 'Edit', true, function (c, p) { return Housekeeping.tasksComplete(c, p); }),
+    'hk.lost.list': route('HK.LOST', 'View', false, function (c, p) { return Housekeeping.lostList(c, p); }),
+    'hk.lost.create': route('HK.LOST', 'Create', true, function (c, p) { return Housekeeping.lostCreate(c, p); }),
+    'hk.lost.update': route('HK.LOST', 'Edit', true, function (c, p) { return Housekeeping.lostUpdate(c, p); })
   };
 
   /** Route-level function IDs are checked here. Service-level checks run inside each handler. */

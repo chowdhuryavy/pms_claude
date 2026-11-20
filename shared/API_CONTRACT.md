@@ -61,7 +61,8 @@ sheet names are never returned.
 | `HK_NOT_READY` | The room is dirty. Clean it before check-in. |
 | `BALANCE_DUE` | The folio balance is not zero at check-out. |
 | `INVALID_STATE` | The action does not apply to the current status. |
-| `APPROVAL_REQUIRED` | The amount is above the caller's approval limit. |
+| `APPROVAL_REQUIRED` | The amount is above the caller's approval limit. Pass `request_approval: true` to `cash.post` to queue it instead. |
+| `SELF_APPROVAL` | A user tried to approve their own posting request. |
 | `DUPLICATE_AUDIT` | Night audit has already completed for this business date. |
 | `AUDIT_IN_PROGRESS` | Another night audit is running. |
 | `REVENUE_MISMATCH` | Night audit found posted room revenue that does not match the stays. |
@@ -84,7 +85,11 @@ Actions are grouped by module. The full list with required functions is in the
 - `config.*`: room types, rooms, config items
 - `res.*`: availability, create, get, list, modify, cancel, no-show, guest search
 - `fo.*`: rack, arrivals, departures, check-in, check-out, room status
-- `cash.*`: folio view, post, transfer, reverse, open folio
+- `cash.*`: folio view, post, transfer, reverse, open folio. `cash.post` with `request_approval: true` returns `status: PENDING_APPROVAL` when the amount is above the caller's limit.
+- `approvals.list` (`property_id`, optional `status`), `approvals.approve` and `approvals.reject` (`approval_id`, `version`, optional `decision_note`)
+- `eng.requests.list`, `eng.requests.create` (`property_id`, `category`, `description`, optional `room_id`, `priority`), `eng.requests.update` (`request_id`, `status`, `assigned_to`, `resolution`, `version`)
+- `hk.tasks.list` (`property_id`, optional `date`), `hk.tasks.create` (`property_id`, `room_id`, `task_type`), `hk.tasks.complete` (`task_id`, `version`)
+- `hk.lost.list`, `hk.lost.create` (`property_id`, `description`), `hk.lost.update` (`item_id`, `status`, `claimed_by`, `version`)
 - `audit.*`: night audit status and run
 - `rpt.*`: flash, daily revenue, occupancy range, guest ledger, CSV export
 

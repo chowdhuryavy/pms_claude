@@ -7,7 +7,7 @@ first document to read before relying on the system.
 
 | Layer | Status |
 | --- | --- |
-| Backend logic (Apps Script sources) | 27 automated tests pass under Node 22 (`npm test`). They run the real files in `apps-script/src` with stubs for Apps Script globals and an in-memory sheet backend. |
+| Backend logic (Apps Script sources) | 65 automated tests pass under Node 22 (`npm test`). They run the real files in `apps-script/src` with stubs for Apps Script globals and an in-memory sheet backend. |
 | Sheets read/write path (`SheetsBackend`) | Written against the documented `SpreadsheetApp` API. **Not yet exercised against a live spreadsheet.** Run the deployment checklist in `docs/DEPLOYMENT.md` before trusting it. |
 | Frontend (React, TypeScript, Vite, Tailwind) | Source is complete for six portals. **Not yet type-checked or built in the authoring environment**, because the package registry was unreachable there. CI runs `npm run typecheck` and `npm run build`. Expect a first-build fix pass. |
 | Deployed end-to-end | Not yet done. |
@@ -89,17 +89,32 @@ cancel), cashier (folio, postings, transfers, reversals), and night audit with
 reports. Buttons are hidden from users whose grants do not allow them. The server
 enforces the same rules.
 
+**Posting approvals.** A cashier can ask for an over-limit adjustment or rebate to be queued
+(`cash.post` with `request_approval: true`). A user with the Approve level and a high enough limit
+approves it, and only then is it posted, exactly once. The requester cannot approve their own request.
+Rejected requests post nothing. Reviewed in `approvals.*`.
+
+**Engineering: maintenance requests.** Requests tied to a room or the property, with category,
+priority and a one-way status flow (open, in progress, done, cancelled). A request cannot be done
+without a resolution note. Module `ENGINEERING`.
+
+**Housekeeping: tasks and lost and found.** Clean, inspect and turndown tasks per room and business
+date. Completing a clean or inspect task sets the room's housekeeping status. Lost and found items
+move from held to claimed (a claimant name is required) or disposed. Module `HOUSEKEEPING`.
+
+**Note for existing properties.** The two new modules are switched off on properties created
+before this release. Turn them on under Admin → Module flags for each property.
+
 ## Not built
 
 These are part of the original brief and are not implemented:
 
 - **Multi-factor authentication.** Not implemented. The brief asks for it where supported.
 - **Email delivery retries and a delivery log.** A failed send is reported once, with the reason. It is not queued for retry.
-- **Engineering module.** Maintenance requests, work orders, preventive maintenance, equipment register.
-- **Housekeeping detail.** Cleaning assignments, inspections as a workflow, discrepancies, lost and found, linen tracking. Only room housekeeping status exists.
+- **Engineering module, rest of.** Work orders, preventive maintenance schedules, equipment register. Maintenance requests are built (see below).
+- **Housekeeping detail, rest of.** Discrepancies and linen tracking. Cleaning, inspection and turndown tasks and lost and found are built (see below).
 - **Purchasing and inventory.** Suppliers, requisitions, purchase orders, goods receipts, stock transfers, valuation, counts.
 - **Finance ledgers.** Guest ledger is reported; city ledger, accounts receivable and aging, accounts payable, general ledger, chart of accounts, journals, trial balance, bank reconciliation, P&L and balance sheet are not built.
-- **Approval workflow.** Over-limit postings are refused, with no request queue. A higher-limit user must post them directly.
 - **Room blocks and allotments, group bookings, room moves, upgrades, deposits and deposit ledger, forecasting, rate calendars, revenue management.**
 - **Packages.** Package codes can be configured but are not applied to postings.
 - **Notification templates and integration APIs.** Not built.

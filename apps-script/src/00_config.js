@@ -120,11 +120,33 @@ var SCHEMA = {
     domain: 'DB_FINANCE', key: 'run_id',
     headers: ['run_id', 'property_id', 'business_date', 'status', 'started_at', 'completed_at', 'rooms_posted',
       'room_minor', 'tax_minor', 'no_shows', 'error', 'created_by']
+  },
+  Approval_Requests: {
+    domain: 'DB_FOLIOS', key: 'approval_id',
+    headers: ['approval_id', 'property_id', 'folio_id', 'res_id', 'code', 'kind', 'amount_minor', 'currency',
+      'business_date', 'description', 'status', 'requested_by', 'requested_at', 'decided_by', 'decided_at',
+      'decision_note', 'txn_id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version']
+  },
+  Maintenance_Requests: {
+    domain: 'DB_ROOMS', key: 'request_id',
+    headers: ['request_id', 'property_id', 'room_id', 'category', 'priority', 'description', 'status', 'assigned_to',
+      'resolution', 'completed_at', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version']
+  },
+  Housekeeping_Tasks: {
+    domain: 'DB_ROOMS', key: 'task_id',
+    headers: ['task_id', 'property_id', 'room_id', 'business_date', 'task_type', 'assigned_to', 'status',
+      'completed_at', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version']
+  },
+  Lost_Found: {
+    domain: 'DB_ROOMS', key: 'item_id',
+    headers: ['item_id', 'property_id', 'description', 'location', 'found_on', 'status', 'claimed_by', 'claimed_at',
+      'notes', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version']
   }
 };
 
 /** Modules that can be switched on or off per property. */
-var MODULES = ['CONFIG', 'RESERVATIONS', 'FRONT_OFFICE', 'CASHIERING', 'NIGHT_AUDIT', 'REPORTING'];
+var MODULES = ['CONFIG', 'RESERVATIONS', 'FRONT_OFFICE', 'CASHIERING', 'NIGHT_AUDIT', 'REPORTING',
+  'ENGINEERING', 'HOUSEKEEPING'];
 
 /**
  * Function registry. Every API action is bound to one of these IDs. The
@@ -156,6 +178,10 @@ var FUNCTIONS = {
   'CASH.TRANSFER':   { module: 'CASHIERING', label: 'Transfer between folios' },
   'CASH.REVERSE':    { module: 'CASHIERING', label: 'Reverse transactions' },
   'CASH.ADJUST':     { module: 'CASHIERING', label: 'Rebates and adjustments' },
+  'APPROVAL.QUEUE':  { module: 'CASHIERING', label: 'Posting approvals' },
+  'ENG.REQUEST':     { module: 'ENGINEERING', label: 'Maintenance requests' },
+  'HK.TASKS':        { module: 'HOUSEKEEPING', label: 'Housekeeping tasks' },
+  'HK.LOST':         { module: 'HOUSEKEEPING', label: 'Lost and found' },
   'AUDIT.RUN':       { module: 'NIGHT_AUDIT', label: 'Night audit' },
   'RPT.VIEW':        { module: 'REPORTING', label: 'Reports' }
 };

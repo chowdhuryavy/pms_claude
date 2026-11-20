@@ -13,7 +13,8 @@ const FILES = [
   '00_config.js', '01_core.js', '02_store.js', '03_sheets_backend.js', '04_auth.js',
   '05_audit.js', '06_admin.js', '07_config_svc.js', '08_reservations.js', '09_cashier.js',
   '10_frontoffice.js', '11_night_audit.js', '12_reports.js', '13_setup.js', '14_api.js',
-  '15_mail.js', '16_account.js', '17_vault.js', 'Updater.js'
+  '15_mail.js', '16_account.js', '17_vault.js', '18_approvals.js', '19_engineering.js', '20_housekeeping.js',
+  'Updater.js'
 ];
 
 function signedBytes(buffer) {

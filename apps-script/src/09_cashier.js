@@ -97,6 +97,17 @@ var Cashier = (function () {
 
     var magnitude = Math.abs(Money.parse(p.amount, 'amount'));
     if (magnitude === 0) throw new PmsError('VALIDATION', 'amount must not be zero');
+    var signed = magnitude * TXN_KINDS[kind].sign;
+    if (fn === 'CASH.ADJUST' && p.request_approval === true && !Perm.isSystemUser(ctx.user) &&
+        magnitude > Perm.approvalLimitFor(ctx.user)) {
+      // Over the caller's limit: queue it for a user with a higher limit instead of refusing.
+      var queued = Approvals.requestPosting(ctx, folio, {
+        code: code, kind: kind, amountSigned: signed,
+        businessDate: Store.mustGet('Properties', pid).business_date, description: p.description
+      });
+      return { status: 'PENDING_APPROVAL', approval_id: queued.approval_id,
+        folio_balance: folioBalance(folio.folio_id), created: false };
+    }
     if (fn === 'CASH.ADJUST') assertApprovalLimit(ctx, magnitude);
 
     var property = Store.mustGet('Properties', pid);
@@ -107,7 +118,7 @@ var Cashier = (function () {
       resId: folio.res_id,
       code: code,
       kind: kind,
-      amountSigned: magnitude * TXN_KINDS[kind].sign,
+      amountSigned: signed,
       currency: folio.currency,
       businessDate: property.business_date,
       description: p.description,
