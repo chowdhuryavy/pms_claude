@@ -61,7 +61,7 @@ export function CashierWorkspace() {
               { header: '', render: (t) => (
                 t.kind === 'REVERSAL' || t.reverses_txn_id ? null : (
                   <Can fn="CASH.REVERSE" level="Create">
-                    <Button variant="secondary" onClick={() => {
+                    <Button variant="secondary" loading={reverse.isPending} onClick={() => {
                       const reason = window.prompt('Reason for reversing this posting');
                       if (reason) reverse.mutate({ txn_id: t.txn_id, reason },
                         { onSuccess: () => flash('Posting reversed.'), onError: fail });
@@ -93,7 +93,7 @@ export function CashierWorkspace() {
                 </Field>
                 <Field label="Amount"><input className={inputClass} required placeholder="0.00" value={postForm.amount} onChange={(e) => setPostForm({ ...postForm, amount: e.target.value })} /></Field>
                 <Field label="Description"><input className={inputClass} value={postForm.description} onChange={(e) => setPostForm({ ...postForm, description: e.target.value })} /></Field>
-                <div className="flex items-end"><Button type="submit" disabled={post.isPending}>Post</Button></div>
+                <div className="flex items-end"><Button type="submit" loading={post.isPending}>Post</Button></div>
               </form>
               <p className="mt-2 text-xs text-slate-500">Adjustment and rebate codes need approval-limit authority. Above your limit, the server refuses the posting.</p>
             </Panel>
@@ -117,7 +117,7 @@ export function CashierWorkspace() {
                   </select>
                 </Field>
                 <Field label="Amount"><input className={inputClass} required value={xferAmount} onChange={(e) => setXferAmount(e.target.value)} /></Field>
-                <div className="flex items-end"><Button type="submit" disabled={!target || transfer.isPending}>Transfer</Button></div>
+                <div className="flex items-end"><Button type="submit" loading={transfer.isPending} disabled={!target}>Transfer</Button></div>
               </form>
             </Panel>
           </Can>

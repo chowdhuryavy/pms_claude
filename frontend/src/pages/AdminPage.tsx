@@ -38,7 +38,7 @@ function OrgSection() {
           create.mutate({ name }, { onError: (err) => setError(errorText(err)) });
         }}>
           <input className={inputClass} placeholder="Organization name" value={name} onChange={(e) => setName(e.target.value)} required />
-          <Button type="submit" disabled={create.isPending}>Add</Button>
+          <Button type="submit" loading={create.isPending}>Add</Button>
         </form>
       </Can>
       <Table<Org> rowKey={(o) => o.org_id} rows={orgs.data?.items ?? []} columns={[
@@ -89,7 +89,7 @@ function PropertySection() {
           <Field label="Business date"><input type="date" className={inputClass} required value={form.business_date} onChange={(e) => setForm({ ...form, business_date: e.target.value })} /></Field>
           <Field label="Licensed rooms"><input type="number" min={1} className={inputClass} value={form.license_rooms} onChange={(e) => setForm({ ...form, license_rooms: e.target.value })} /></Field>
           <Field label="User limit"><input type="number" min={1} className={inputClass} value={form.user_limit} onChange={(e) => setForm({ ...form, user_limit: e.target.value })} /></Field>
-          <div className="md:col-span-4"><Button type="submit" disabled={create.isPending}>Create property</Button></div>
+          <div className="md:col-span-4"><Button type="submit" loading={create.isPending}>Create property</Button></div>
         </form>
       )}
       <Table<Property> rowKey={(p) => p.property_id} rows={props.data?.items ?? []} empty="No properties you can see" columns={[
@@ -102,7 +102,7 @@ function PropertySection() {
         {
           header: '',
           render: (p) => me.is_system_admin ? (
-            <Button variant="secondary" onClick={() => setStatus.mutate({
+            <Button variant="secondary" loading={setStatus.isPending} onClick={() => setStatus.mutate({
               property_id: p.property_id, version: p.version,
               status: p.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE'
             }, { onError: (err) => setError(errorText(err)) })}>
@@ -188,7 +188,7 @@ function UserSection() {
           render: (u) => (
             <span className="flex flex-wrap justify-end gap-2">
               <Can fn="ADMIN.USER" level="Edit">
-                <Button variant="ghost" icon="refresh" disabled={!u.email || reset.isPending}
+                <Button variant="ghost" icon="refresh" loading={reset.isPending} disabled={!u.email}
                   className={confirming === u.user_id ? 'text-red-700 hover:bg-red-50' : ''}
                   title={u.email ? '' : 'Add an email address first'}
                   onClick={() => {
@@ -201,7 +201,7 @@ function UserSection() {
                   }}>
                   {confirming === u.user_id ? 'Confirm reset' : 'Reset password'}
                 </Button>
-                <Button variant="secondary" onClick={() => setStatus.mutate({
+                <Button variant="secondary" loading={setStatus.isPending} onClick={() => setStatus.mutate({
                   user_id: u.user_id, status: u.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE'
                 }, { onError: (err) => setError(errorText(err)) })}>
                   {u.status === 'ACTIVE' ? 'Disable' : 'Enable'}
@@ -232,7 +232,7 @@ function RoleSection() {
           create.mutate({ name }, { onError: (err) => setError(errorText(err)) });
         }}>
           <input className={inputClass} placeholder="Role name" required value={name} onChange={(e) => setName(e.target.value)} />
-          <Button type="submit">Add role</Button>
+          <Button type="submit" loading={create.isPending}>Add role</Button>
         </form>
       </Can>
       <Table<Role> rowKey={(r) => r.role_id} rows={roles.data?.items ?? []} columns={[
@@ -243,7 +243,7 @@ function RoleSection() {
               <input className="w-28 rounded border border-slate-300 px-2 py-1 text-right text-sm"
                 value={limits[r.role_id] ?? (r.approval_limit_minor / 100).toFixed(2)}
                 onChange={(e) => setLimits({ ...limits, [r.role_id]: e.target.value })} />
-              <Button variant="secondary" onClick={() => {
+              <Button variant="secondary" loading={setLimit.isPending} onClick={() => {
                 const v = normalizeMoneyInput(limits[r.role_id] ?? '');
                 if (v === null) { setError('Approval limit must be a decimal such as 500.00'); return; }
                 setLimit.mutate({ role_id: r.role_id, approval_limit: v, version: r.version }, { onError: (err) => setError(errorText(err)) });
@@ -351,8 +351,8 @@ function AuditSection() {
   return (
     <Panel title="Audit log" actions={
       <div className="flex gap-2">
-        <Button variant="secondary" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 25))}>Newer</Button>
-        <Button variant="secondary" disabled={audit.data?.next_offset == null} onClick={() => setOffset(audit.data?.next_offset ?? offset)}>Older</Button>
+        <Button variant="secondary" loading={audit.isFetching} disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 25))}>Newer</Button>
+        <Button variant="secondary" loading={audit.isFetching} disabled={audit.data?.next_offset == null} onClick={() => setOffset(audit.data?.next_offset ?? offset)}>Older</Button>
       </div>
     }>
       <Table<AuditRow> rowKey={(a) => a.at + a.entity_id + a.action} rows={audit.data?.items ?? []} columns={[

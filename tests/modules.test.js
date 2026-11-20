@@ -258,3 +258,14 @@ test('housekeeping tasks list for one business date', () => {
   assert.equal(list.total, 1);
   assert.equal(list.items[0].room_number, '101');
 });
+
+test('organization, property and role lists return the paged shape the admin screens read', () => {
+  const env = bootstrap();
+  env.call('admin.orgs.create', { name: 'Second Group' });
+  const orgs = env.call('admin.orgs.list', {});
+  assert.ok(Array.isArray(orgs.items));
+  assert.ok(orgs.items.some((o) => o.name === 'Second Group'));
+  assert.equal(typeof orgs.total, 'number');
+  assert.ok(Array.isArray(env.call('admin.properties.list', {}).items));
+  assert.ok(Array.isArray(env.call('admin.roles.list', {}).items));
+});

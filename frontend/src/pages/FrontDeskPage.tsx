@@ -41,7 +41,7 @@ function Availability() {
       }}>
         <Field label="Arrival"><input type="date" className={inputClass} value={arrival} onChange={(e) => setArrival(e.target.value)} /></Field>
         <Field label="Departure"><input type="date" className={inputClass} value={departure} onChange={(e) => setDeparture(e.target.value)} /></Field>
-        <Button type="submit">Check availability</Button>
+        <Button type="submit" loading={avail.isFetching}>Check availability</Button>
       </form>
       <Table<AvailRow> rowKey={(a) => a.room_type_id} rows={searched ? avail.data ?? [] : []} empty="Search a date range to see availability" columns={[
         { header: 'Room type', render: (a) => `${a.code} · ${a.description}` },
@@ -93,7 +93,7 @@ function Availability() {
             </select>
           </Field>
           <div className="flex items-end gap-2">
-            <Button type="submit" disabled={book.isPending}>Confirm booking</Button>
+            <Button type="submit" loading={book.isPending}>Confirm booking</Button>
             <Button variant="secondary" type="button" onClick={() => setBooking(null)}>Cancel</Button>
           </div>
         </form>
@@ -155,17 +155,17 @@ function StayActions({ res, onError }: { res: Res; onError: (m: string) => void 
     <div className="flex flex-wrap gap-2">
       {res.status === 'RESERVED' && (
         <Can fn="FO.CHECKIN" level="Create">
-          <Button onClick={() => checkin.mutate({ res_id: res.res_id, version: res.version }, { onError: showErr })}>Check in</Button>
+          <Button loading={checkin.isPending} onClick={() => checkin.mutate({ res_id: res.res_id, version: res.version }, { onError: showErr })}>Check in</Button>
         </Can>
       )}
       {res.status === 'RESERVED' && (
         <Can fn="RES.CANCEL" level="Edit">
-          <Button variant="secondary" onClick={() => noShow.mutate({ res_id: res.res_id, version: res.version }, { onError: showErr })}>No-show</Button>
+          <Button variant="secondary" loading={noShow.isPending} onClick={() => noShow.mutate({ res_id: res.res_id, version: res.version }, { onError: showErr })}>No-show</Button>
         </Can>
       )}
       {res.status === 'RESERVED' && (
         <Can fn="RES.CANCEL" level="Delete">
-          <Button variant="danger" onClick={() => {
+          <Button variant="danger" loading={cancel.isPending} onClick={() => {
             const reason = window.prompt('Reason for cancelling this booking');
             if (reason) cancel.mutate({ res_id: res.res_id, reason, version: res.version }, { onError: showErr });
           }}>Cancel</Button>
@@ -173,7 +173,7 @@ function StayActions({ res, onError }: { res: Res; onError: (m: string) => void 
       )}
       {res.status === 'IN_HOUSE' && (
         <Can fn="FO.CHECKOUT" level="Create">
-          <Button variant="secondary" onClick={() => checkout.mutate({ res_id: res.res_id, version: res.version }, { onError: showErr })}>Check out</Button>
+          <Button variant="secondary" loading={checkout.isPending} onClick={() => checkout.mutate({ res_id: res.res_id, version: res.version }, { onError: showErr })}>Check out</Button>
         </Can>
       )}
     </div>

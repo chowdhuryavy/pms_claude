@@ -29,7 +29,7 @@ function NightAuditPanel() {
   return (
     <Panel title={`Night audit${s ? ` · business date ${s.business_date}` : ''}`} actions={
       <Can fn="AUDIT.RUN" level="Execute">
-        <Button disabled={!s?.can_run || run.isPending} onClick={() => {
+        <Button loading={run.isPending} disabled={!s?.can_run} onClick={() => {
           if (!window.confirm(`Run night audit for ${s?.business_date}? The business date will move to the next day after it completes.`)) return;
           setError(null);
           run.mutate({ property_id: pid }, { onSuccess: (r) => setResult(r), onError: (e) => setError(errorText(e)) });
@@ -65,6 +65,7 @@ function FlashPanel() {
   const pid = propertyId ?? '';
   const [date, setDate] = useState('');
   const flash = useApiQuery<Flash>('rpt.flash', { property_id: pid, date: date || undefined }, !!pid && !!me.grants['RPT.VIEW']?.length);
+  const [exporting, setExporting] = useState(false);
   const daily = useApiQuery<Daily>('rpt.daily_revenue', { property_id: pid, date: date || undefined }, !!pid && !!me.grants['RPT.VIEW']?.length);
   const f = flash.data;
   if (!me.grants['RPT.VIEW']?.length) return null;
@@ -99,12 +100,19 @@ function FlashPanel() {
       ]} />
       {daily.data && <p className="mt-2 text-sm font-medium">Total {formatMoney(daily.data.total_minor)}</p>}
       <Can fn="RPT.VIEW" level="Export">
-        <Button variant="secondary" className="mt-3" onClick={async () => {
-          const out = await callApi<{ filename: string; csv: string }>('rpt.daily_revenue_csv', { property_id: pid, date: date || undefined });
-          const url = URL.createObjectURL(new Blob([out.csv], { type: 'text/csv' }));
-          const a = document.createElement('a');
-          a.href = url; a.download = out.filename; a.click();
-          URL.revokeObjectURL(url);
+        <Button variant="secondary" className="mt-3" loading={exporting} onClick={async () => {
+          setExporting(true);
+          try {
+            const out = await callApi<{ filename: string; csv: string }>('rpt.daily_revenue_csv', { property_id: pid, date: date || undefined });
+            const url = URL.createObjectURL(new Blob([out.csv], { type: 'text/csv' }));
+            const a = document.createElement('a');
+            a.href = url; a.download = out.filename; a.click();
+            URL.revokeObjectURL(url);
+          } catch (err) {
+            setError(errorText(err));
+          } finally {
+            setExporting(false);
+          }
         }}>Export CSV</Button>
       </Can>
     </Panel>
@@ -124,7 +132,7 @@ function OccupancyPanel() {
       <form className="mb-4 flex flex-wrap items-end gap-3" onSubmit={(e) => { e.preventDefault(); setSearched({ from, to }); }}>
         <Field label="From"><input type="date" className={inputClass} value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
         <Field label="To"><input type="date" className={inputClass} value={to} onChange={(e) => setTo(e.target.value)} /></Field>
-        <Button type="submit">Run</Button>
+        <Button type="submit" loading={occ.isFetching}>Run</Button>
       </form>
       {occ.data && (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-5">

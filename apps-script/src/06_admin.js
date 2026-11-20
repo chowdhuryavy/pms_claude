@@ -51,9 +51,9 @@ var Admin = (function () {
 
   // ---- Organizations -------------------------------------------------------
 
-  function orgsList(ctx) {
+  function orgsList(ctx, p) {
     Perm.authorize(ctx, 'ADMIN.ORG', 'View');
-    return Store.publicRows(Store.list('Organizations', function () { return true; }));
+    return Paging.page(Store.publicRows(Store.list('Organizations', function () { return true; })), p);
   }
 
   function orgsCreate(ctx, p) {
@@ -67,9 +67,9 @@ var Admin = (function () {
 
   // ---- Properties and licensing -------------------------------------------
 
-  function propertiesList(ctx) {
+  function propertiesList(ctx, p) {
     Perm.authorize(ctx, 'ADMIN.PROPERTY', 'View');
-    return Store.publicRows(visibleProperties(ctx));
+    return Paging.page(Store.publicRows(visibleProperties(ctx)), p);
   }
 
   function propertiesCreate(ctx, p) {
@@ -228,9 +228,9 @@ var Admin = (function () {
 
   // ---- Roles and permission matrix ----------------------------------------
 
-  function rolesList(ctx) {
+  function rolesList(ctx, p) {
     Perm.authorize(ctx, 'ADMIN.ROLE', 'View');
-    return Store.publicRows(Store.list('Roles', function () { return true; }));
+    return Paging.page(Store.publicRows(Store.list('Roles', function () { return true; })), p);
   }
 
   function rolesCreate(ctx, p) {

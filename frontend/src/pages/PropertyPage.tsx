@@ -35,7 +35,7 @@ function RoomTypes() {
           <Field label="Description"><input className={inputClass} required value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></Field>
           <Field label="Max occupancy"><input type="number" min={1} max={20} className={inputClass} value={form.max_occupancy} onChange={(e) => setForm({ ...form, max_occupancy: e.target.value })} /></Field>
           <Field label="Base rate"><input className={inputClass} required value={form.base_rate} onChange={(e) => setForm({ ...form, base_rate: e.target.value })} /></Field>
-          <div className="flex items-end"><Button type="submit" disabled={create.isPending}>Add room type</Button></div>
+          <div className="flex items-end"><Button type="submit" loading={create.isPending}>Add room type</Button></div>
         </form>
       </Can>
       <Table<RoomType> rowKey={(t) => t.room_type_id} rows={types.data?.items ?? []} empty={can ? 'No room types yet' : 'You cannot view room types'} columns={[
@@ -76,7 +76,7 @@ function Rooms() {
             </select>
           </Field>
           <Field label="Floor"><input className={inputClass} value={form.floor} onChange={(e) => setForm({ ...form, floor: e.target.value })} /></Field>
-          <div className="flex items-end"><Button type="submit" disabled={create.isPending}>Add room</Button></div>
+          <div className="flex items-end"><Button type="submit" loading={create.isPending}>Add room</Button></div>
         </form>
       </Can>
       <Table<Room> rowKey={(r) => r.room_id} rows={rooms.data?.items ?? []} columns={[
@@ -87,7 +87,7 @@ function Rooms() {
         { header: 'Housekeeping', render: (r) => r.housekeeping_status },
         { header: '', render: (r) => (
           <Can fn="CFG.ROOM" level="Edit">
-            <Button variant="secondary" onClick={() => update.mutate({
+            <Button variant="secondary" loading={update.isPending} onClick={() => update.mutate({
               room_id: r.room_id, version: r.version, status: r.status === 'ACTIVE' ? 'OUT_OF_ORDER' : 'ACTIVE'
             }, { onError: (err) => setError(errorText(err)) })}>
               {r.status === 'ACTIVE' ? 'Mark out of order' : 'Return to service'}
@@ -135,7 +135,7 @@ function ConfigCodes() {
           {type === 'TAX_RULE' && (
             <Field label="Rate (basis points)" hint="1000 = 10%"><input type="number" min={0} max={10000} className={inputClass} value={form.rate_bps} onChange={(e) => setForm({ ...form, rate_bps: e.target.value })} /></Field>
           )}
-          <div className="flex items-end"><Button type="submit" disabled={create.isPending}>Add</Button></div>
+          <div className="flex items-end"><Button type="submit" loading={create.isPending}>Add</Button></div>
         </form>
       </Can>
       <Table<ConfigItem> rowKey={(c) => c.config_id} rows={items.data?.items ?? []} empty="Nothing configured for this type" columns={[

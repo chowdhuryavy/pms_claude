@@ -128,7 +128,7 @@ export function EmailSettingsPanel() {
               <div className="flex gap-2">
                 <div className="flex-1"><SecretInput value={smtpPassword} onChange={setSmtpPassword} disabled={!canEdit} autoComplete="new-password" /></div>
                 {s?.smtp_password_saved && canEdit && (
-                  <Button type="button" variant="ghost" icon="x" onClick={() => clear('smtp_password', 'SMTP password')}>Clear</Button>
+                  <Button type="button" variant="ghost" icon="x" loading={clearSecret.isPending} onClick={() => clear('smtp_password', 'SMTP password')}>Clear</Button>
                 )}
               </div>
             </Field>
@@ -140,7 +140,7 @@ export function EmailSettingsPanel() {
               <div className="flex gap-2">
                 <div className="flex-1"><SecretInput value={relaySecret} onChange={setRelaySecret} disabled={!canEdit} autoComplete="off" /></div>
                 {s?.relay_secret_saved && canEdit && (
-                  <Button type="button" variant="ghost" icon="x" onClick={() => clear('relay_secret', 'Relay secret')}>Clear</Button>
+                  <Button type="button" variant="ghost" icon="x" loading={clearSecret.isPending} onClick={() => clear('relay_secret', 'Relay secret')}>Clear</Button>
                 )}
               </div>
             </Field>
@@ -152,7 +152,7 @@ export function EmailSettingsPanel() {
               <div className="flex gap-2">
                 <div className="flex-1"><SecretInput value={resendKey} onChange={setResendKey} placeholder={s?.resend_key_saved ? 'Saved. Leave blank to keep.' : 're_…'} disabled={!canEdit} autoComplete="off" /></div>
                 {s?.resend_key_saved && canEdit && (
-                  <Button type="button" variant="ghost" icon="x" onClick={() => clear('resend', 'Resend key')}>Clear</Button>
+                  <Button type="button" variant="ghost" icon="x" loading={clearSecret.isPending} onClick={() => clear('resend', 'Resend key')}>Clear</Button>
                 )}
               </div>
             </Field>
