@@ -23,12 +23,7 @@ var Setup = (function () {
           sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
           sheet.setFrozenRows(1);
         } else {
-          var actual = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
-          headers.forEach(function (h, i) {
-            if (actual[i] !== h) {
-              throw new Error('Sheet ' + name + ' column ' + (i + 1) + ' is "' + actual[i] + '", expected "' + h + '"');
-            }
-          });
+          migrateHeaders(sheet, name, headers);
         }
       });
 
@@ -119,9 +114,31 @@ var Setup = (function () {
     });
   }
 
+  /**
+   * Brings an existing sheet up to the schema. The backend reads columns by position,
+   * so a column missing from an older sheet is inserted at its schema position, and
+   * its existing rows keep their values. A column that exists but is out of order is
+   * not changed automatically, because moving data by hand is the only safe fix.
+   */
+  function migrateHeaders(sheet, name, headers) {
+    for (var i = 0; i < headers.length; i++) {
+      var width = Math.max(sheet.getLastColumn(), headers.length);
+      var actual = sheet.getRange(1, 1, 1, width).getValues()[0];
+      if (actual[i] === headers[i]) continue;
+      var at = actual.indexOf(headers[i]);
+      if (at !== -1) {
+        throw new Error('Sheet ' + name + ' has "' + headers[i] + '" in column ' + (at + 1) +
+          ', expected column ' + (i + 1) + '. Move that column by hand, then run setupInitialize again.');
+      }
+      sheet.insertColumnBefore(i + 1);
+      sheet.getRange(1, i + 1).setValue(headers[i]);
+      Logger.log('Added column ' + headers[i] + ' to ' + name + ' at position ' + (i + 1));
+    }
+  }
+
   return {
     initialize: initialize, createFirstAdmin: createFirstAdmin, bootstrapAdmin: bootstrapAdmin,
-    seedDefaultCodes: seedDefaultCodes
+    seedDefaultCodes: seedDefaultCodes, migrateHeaders: migrateHeaders
   };
 })();
 
