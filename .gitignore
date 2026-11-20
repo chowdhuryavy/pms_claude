@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+.env.local
+.clasp.json
+.clasprc.json
+*.log
+.DS_Store
+coverage/
