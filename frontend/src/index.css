@@ -5,3 +5,29 @@
 body {
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
+
+/* Motion. Kept short; disabled for users who ask for reduced motion. */
+@keyframes pms-fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes pms-pop {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes pms-spin {
+  to { transform: rotate(360deg); }
+}
+.anim-fade-up { animation: pms-fade-up 0.35s ease-out both; }
+.anim-pop { animation: pms-pop 0.25s ease-out both; }
+.spin { animation: pms-spin 0.9s linear infinite; }
+.press { transition: transform 0.1s ease; }
+.press:active { transform: scale(0.97); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

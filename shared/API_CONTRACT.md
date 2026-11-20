@@ -67,6 +67,9 @@ sheet names are never returned.
 | `REVENUE_MISMATCH` | Night audit found posted room revenue that does not match the stays. |
 | `LEDGER_UNBALANCED` | Night audit found transfer legs that do not net to zero. |
 | `RATE_LIMITED` | Too many requests. Slow down. |
+| `WRONG_PASSWORD` | The current password given to `auth.change_password` is incorrect. |
+| `PASSWORD_CHANGE_REQUIRED` | The user has a temporary password. Only `auth.me`, `auth.logout` and `auth.change_password` are allowed until it is changed. |
+| `MAIL_FAILED` | A test email could not be sent. The message includes the provider's reason. |
 | `INTERNAL` | Unexpected server error. |
 
 ## Action names
@@ -74,7 +77,9 @@ sheet names are never returned.
 Actions are grouped by module. The full list with required functions is in the
 `ROUTES` table in `apps-script/src/14_api.js`.
 
-- `auth.login`, `auth.logout`, `auth.me`
+- `auth.login`, `auth.logout`, `auth.me`, `auth.change_password` (`current_password`, `new_password`)
+- `admin.users.reset_password` (`user_id`, `version`): new temporary password, emailed, all sessions revoked
+- `admin.email.get`, `admin.email.save`, `admin.email.clear_key`, `admin.email.test` (System Administrator only for writes)
 - `admin.*`: organizations, properties, users, roles, permissions, flags, audit
 - `config.*`: room types, rooms, config items
 - `res.*`: availability, create, get, list, modify, cancel, no-show, guest search
@@ -82,6 +87,12 @@ Actions are grouped by module. The full list with required functions is in the
 - `cash.*`: folio view, post, transfer, reverse, open folio
 - `audit.*`: night audit status and run
 - `rpt.*`: flash, daily revenue, occupancy range, guest ledger, CSV export
+
+## Temporary passwords
+
+`admin.users.create` and `admin.users.reset_password` never return a password. The
+response has `email_sent`, `provider` and `reason`. The temporary password is only in the
+email. Only one email provider is needed; see `docs/SECURITY.md`.
 
 ## Identifiers
 

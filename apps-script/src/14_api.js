@@ -15,6 +15,8 @@
  * Write calls run under a script lock. Repeated idempotency_key values return the first result.
  */
 
+var PASSWORD_CHANGE_ALLOWED = ['auth.me', 'auth.logout', 'auth.change_password'];
+
 var Api = (function () {
 
   function route(fn, level, write, handler, opts) {
@@ -32,6 +34,7 @@ var Api = (function () {
       return { signed_out: true };
     }),
     'auth.me': route(null, null, false, function (ctx) { return me(ctx); }),
+    'auth.change_password': route(null, null, true, function (ctx, p) { return Account.changePassword(ctx, p); }),
 
     'admin.orgs.list': route('ADMIN.ORG', 'View', false, function (c) { return Admin.orgsList(c); }),
     'admin.orgs.create': route('ADMIN.ORG', 'Create', true, function (c, p) { return Admin.orgsCreate(c, p); }),
@@ -42,6 +45,11 @@ var Api = (function () {
     'admin.users.list': route('ADMIN.USER', 'View', false, function (c, p) { return Admin.usersList(c, p); }),
     'admin.users.create': route('ADMIN.USER', 'Create', true, function (c, p) { return Admin.usersCreate(c, p); }),
     'admin.users.status': route('ADMIN.USER', 'Edit', true, function (c, p) { return Admin.usersSetStatus(c, p); }),
+    'admin.users.reset_password': route('ADMIN.USER', 'Edit', true, function (c, p) { return Account.resetByAdmin(c, p); }),
+    'admin.email.get': route('ADMIN.EMAIL', 'View', false, function (c) { return Mail.getSettings(c); }),
+    'admin.email.save': route('ADMIN.EMAIL', 'Edit', true, function (c, p) { return Mail.saveSettings(c, p); }),
+    'admin.email.clear_key': route('ADMIN.EMAIL', 'Edit', true, function (c) { return Mail.clearKey(c); }),
+    'admin.email.test': route('ADMIN.EMAIL', 'Execute', true, function (c, p) { return Mail.test(c, p); }),
     'admin.roles.list': route('ADMIN.ROLE', 'View', false, function (c) { return Admin.rolesList(c); }),
     'admin.roles.create': route('ADMIN.ROLE', 'Create', true, function (c, p) { return Admin.rolesCreate(c, p); }),
     'admin.roles.approval_limit': route('ADMIN.ROLE', 'Edit', true, function (c, p) { return Admin.rolesSetApprovalLimit(c, p); }),
@@ -168,6 +176,10 @@ var Api = (function () {
       var session = Auth.resolve(req.token);
       ctx = { user: session.user, session: session.session, grants: Perm.grantsFor(session.user) };
       rateLimit('user:' + session.user.user_id);
+      // A user with a temporary password can only look at themselves or change the password.
+      if (String(session.user.must_change_password) === 'true' && PASSWORD_CHANGE_ALLOWED.indexOf(action) === -1) {
+        throw new PmsError('PASSWORD_CHANGE_REQUIRED', 'Change your temporary password before continuing', 403);
+      }
       if (r.fn) Perm.authorize(ctx, r.fn, r.level);
     } else {
       rateLimit('login:' + String(payload.username || '').toLowerCase());

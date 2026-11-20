@@ -6,7 +6,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, callApi, newIdempotencyKey } from './api';
 
 export interface Me {
-  user: { user_id: string; username: string; display_name: string; org_id: string };
+  user: {
+    user_id: string; username: string; display_name: string; org_id: string;
+    email: string; must_change_password: boolean;
+  };
   is_system_admin: boolean;
   grants: Record<string, string[]>;
   properties: Array<{

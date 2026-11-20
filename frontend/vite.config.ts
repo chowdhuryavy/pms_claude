@@ -16,7 +16,8 @@ export default defineConfig({
         property: resolve(__dirname, 'property.html'),
         frontdesk: resolve(__dirname, 'frontdesk.html'),
         cashier: resolve(__dirname, 'cashier.html'),
-        audit: resolve(__dirname, 'audit.html')
+        audit: resolve(__dirname, 'audit.html'),
+        password: resolve(__dirname, 'password.html')
       }
     }
   }

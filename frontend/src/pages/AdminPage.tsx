@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Shell, Can, usePortal } from '../components/Shell';
-import { Button, Field, Notice, Panel, Table, inputClass, errorText } from '../components/ui';
+import { Badge, Button, Field, Notice, Panel, Table, Tabs, inputClass, errorText, type TabDef } from '../components/ui';
+import { EmailSettingsPanel } from '../components/EmailSettings';
 import { useApiAction, useApiQuery, type Page } from '../lib/hooks';
 import { normalizeMoneyInput, todayIso } from '../lib/format';
 
@@ -12,7 +13,11 @@ interface Property {
   property_id: string; org_id: string; code: string; name: string; status: string; currency: string;
   timezone: string; business_date: string; license_rooms: number; user_limit: number; version: number;
 }
-interface UserRow { user_id: string; username: string; display_name: string; status: string; role_ids: string[]; property_ids: string[] }
+interface UserRow {
+  user_id: string; username: string; display_name: string; email: string; status: string;
+  must_change_password: boolean; role_ids: string[]; property_ids: string[]; version: number;
+}
+interface CreateResult { email_sent: boolean; provider: string; reason: string }
 interface Role { role_id: string; name: string; approval_limit_minor: number; is_system: string; version: number }
 interface Flag { flag_id: string; module_key: string; enabled: string }
 interface AuditRow { at: string; user_id: string; function_id: string; action: string; entity: string; entity_id: string }
@@ -116,25 +121,45 @@ function UserSection() {
   const roles = useApiQuery<Page<Role>>('admin.roles.list', {}, true);
   const props = useApiQuery<Page<Property>>('admin.properties.list', {}, true);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({ username: '', display_name: '', password: '', role_id: '', property_id: '' });
-  const create = useApiAction('admin.users.create');
+  const [result, setResult] = useState<{ kind: 'ok' | 'info'; text: string } | null>(null);
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [form, setForm] = useState({ username: '', display_name: '', email: '', role_id: '', property_id: '' });
+  const create = useApiAction<CreateResult>('admin.users.create');
   const setStatus = useApiAction('admin.users.status');
+  const reset = useApiAction<{ email_sent: boolean; provider: string; reason: string }>('admin.users.reset_password');
+
+  const describe = (r: { email_sent: boolean; provider: string; reason: string }, email: string) =>
+    r.email_sent
+      ? { kind: 'ok' as const, text: `Temporary password emailed to ${email} through ${r.provider === 'RESEND' ? 'Resend' : 'Google mail'}. The user must change it at first sign-in.` }
+      : { kind: 'info' as const, text: `Saved, but the email was not sent: ${r.reason}. Fix the email settings, then use Reset password for this user.` };
+
+  useEffect(() => {
+    if (!confirming) return;
+    const t = window.setTimeout(() => setConfirming(null), 4000);
+    return () => window.clearTimeout(t);
+  }, [confirming]);
 
   return (
-    <Panel title="Users">
+    <Panel title="Users" icon="users">
       {error && <Notice kind="error">{error}</Notice>}
+      {result && <Notice kind={result.kind}>{result.text}</Notice>}
       <Can fn="ADMIN.USER" level="Create">
         <form className="mb-6 grid gap-3 md:grid-cols-6" onSubmit={(e) => {
-          e.preventDefault(); setError(null);
+          e.preventDefault(); setError(null); setResult(null);
           create.mutate({
-            username: form.username, display_name: form.display_name, password: form.password,
+            username: form.username, display_name: form.display_name, email: form.email,
             role_ids: [form.role_id], property_ids: [form.property_id]
-          }, { onSuccess: () => setForm({ ...form, username: '', display_name: '', password: '' }),
-               onError: (err) => setError(errorText(err)) });
+          }, {
+            onSuccess: (r) => {
+              setResult(describe(r, form.email));
+              setForm({ ...form, username: '', display_name: '', email: '' });
+            },
+            onError: (err) => setError(errorText(err))
+          });
         }}>
           <Field label="Username"><input className={inputClass} required value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} /></Field>
           <Field label="Display name"><input className={inputClass} required value={form.display_name} onChange={(e) => setForm({ ...form, display_name: e.target.value })} /></Field>
-          <Field label="Temporary password" hint="12+ characters, letters and digits"><input type="password" className={inputClass} required value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></Field>
+          <Field label="Email" hint="Temporary password is sent here"><input type="email" className={inputClass} required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
           <Field label="Role">
             <select className={inputClass} required value={form.role_id} onChange={(e) => setForm({ ...form, role_id: e.target.value })}>
               <option value="">Select</option>
@@ -147,24 +172,42 @@ function UserSection() {
               {(props.data?.items ?? []).map((p) => <option key={p.property_id} value={p.property_id}>{p.code}</option>)}
             </select>
           </Field>
-          <div className="flex items-end"><Button type="submit" disabled={create.isPending}>Create user</Button></div>
+          <div className="flex items-end"><Button type="submit" icon="users" loading={create.isPending}>Create user</Button></div>
         </form>
       </Can>
       <Table<UserRow> rowKey={(u) => u.user_id} rows={users.data?.items ?? []} columns={[
         { header: 'Username', render: (u) => u.username },
         { header: 'Name', render: (u) => u.display_name },
-        { header: 'Status', render: (u) => u.status },
+        { header: 'Email', render: (u) => u.email || <span className="text-slate-400">none</span> },
+        { header: 'Status', render: (u) => <Badge tone={u.status === 'ACTIVE' ? 'ok' : 'bad'}>{u.status}</Badge> },
+        { header: 'Password', render: (u) => u.must_change_password
+          ? <Badge tone="warn">Must change</Badge> : <Badge tone="muted">Set</Badge> },
         { header: 'Properties', render: (u) => u.property_ids.length },
         {
           header: '',
           render: (u) => (
-            <Can fn="ADMIN.USER" level="Edit">
-              <Button variant="secondary" onClick={() => setStatus.mutate({
-                user_id: u.user_id, status: u.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE'
-              }, { onError: (err) => setError(errorText(err)) })}>
-                {u.status === 'ACTIVE' ? 'Disable' : 'Enable'}
-              </Button>
-            </Can>
+            <span className="flex flex-wrap justify-end gap-2">
+              <Can fn="ADMIN.USER" level="Edit">
+                <Button variant="ghost" icon="refresh" disabled={!u.email || reset.isPending}
+                  className={confirming === u.user_id ? 'text-red-700 hover:bg-red-50' : ''}
+                  title={u.email ? '' : 'Add an email address first'}
+                  onClick={() => {
+                    if (confirming !== u.user_id) { setConfirming(u.user_id); return; }
+                    setConfirming(null); setError(null); setResult(null);
+                    reset.mutate({ user_id: u.user_id, version: u.version }, {
+                      onSuccess: (r) => setResult(describe(r, u.email)),
+                      onError: (err) => setError(errorText(err))
+                    });
+                  }}>
+                  {confirming === u.user_id ? 'Confirm reset' : 'Reset password'}
+                </Button>
+                <Button variant="secondary" onClick={() => setStatus.mutate({
+                  user_id: u.user_id, status: u.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE'
+                }, { onError: (err) => setError(errorText(err)) })}>
+                  {u.status === 'ACTIVE' ? 'Disable' : 'Enable'}
+                </Button>
+              </Can>
+            </span>
           )
         }
       ]} />
@@ -322,18 +365,28 @@ function AuditSection() {
   );
 }
 
+const TABS: TabDef[] = [
+  { id: 'overview', label: 'Organizations', icon: 'building' },
+  { id: 'users', label: 'Users', icon: 'users' },
+  { id: 'access', label: 'Roles and access', icon: 'shield' },
+  { id: 'email', label: 'Email', icon: 'mail' },
+  { id: 'audit', label: 'Audit log', icon: 'chart' }
+];
+
 export default function AdminPage() {
+  const [tab, setTab] = useState('overview');
   return (
     <Shell title="Administration">
       {() => (
         <>
-          <OrgSection />
-          <PropertySection />
-          <UserSection />
-          <RoleSection />
-          <PermissionMatrix />
-          <FlagSection />
-          <AuditSection />
+          <Tabs tabs={TABS} active={tab} onChange={setTab} />
+          <div key={tab} className="anim-fade-up">
+            {tab === 'overview' && (<><OrgSection /><PropertySection /></>)}
+            {tab === 'users' && <UserSection />}
+            {tab === 'access' && (<><RoleSection /><PermissionMatrix /><FlagSection /></>)}
+            {tab === 'email' && <EmailSettingsPanel />}
+            {tab === 'audit' && <AuditSection />}
+          </div>
         </>
       )}
     </Shell>

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { callApi, ApiError } from '../lib/api';
 import { clearToken, getToken } from '../lib/session';
 import { hasGrant, type Me } from '../lib/hooks';
+import { Icon, type IconName } from './Icon';
 
 interface PropertyCtx {
   me: Me;
@@ -18,20 +19,27 @@ export function usePortal(): PropertyCtx {
   return v;
 }
 
-const NAV: Array<{ href: string; label: string; visible: (me: Me) => boolean }> = [
-  { href: 'admin.html', label: 'Administration', visible: (m) => Object.keys(m.grants).some((f) => f.startsWith('ADMIN.')) },
-  { href: 'property.html', label: 'Property setup', visible: (m) => Object.keys(m.grants).some((f) => f.startsWith('CFG.')) },
-  { href: 'frontdesk.html', label: 'Front desk', visible: (m) => Object.keys(m.grants).some((f) => f.startsWith('RES.') || f.startsWith('FO.')) },
-  { href: 'cashier.html', label: 'Cashier', visible: (m) => Object.keys(m.grants).some((f) => f.startsWith('CASH.')) },
-  { href: 'audit.html', label: 'Night audit and reports', visible: (m) => Object.keys(m.grants).some((f) => f.startsWith('AUDIT.') || f.startsWith('RPT.')) }
+const anyGrant = (prefixes: string[]) => (m: Me) =>
+  Object.keys(m.grants).some((f) => prefixes.some((p) => f.startsWith(p)));
+
+const NAV: Array<{ href: string; label: string; icon: IconName; visible: (me: Me) => boolean }> = [
+  { href: 'admin.html', label: 'Administration', icon: 'building', visible: anyGrant(['ADMIN.']) },
+  { href: 'property.html', label: 'Property setup', icon: 'sliders', visible: anyGrant(['CFG.']) },
+  { href: 'frontdesk.html', label: 'Front desk', icon: 'users', visible: anyGrant(['RES.', 'FO.']) },
+  { href: 'cashier.html', label: 'Cashier', icon: 'wallet', visible: anyGrant(['CASH.']) },
+  { href: 'audit.html', label: 'Night audit and reports', icon: 'chart', visible: anyGrant(['AUDIT.', 'RPT.']) }
 ];
 
 /**
  * Page frame. Loads the signed-in user, redirects to sign-in when the session is
- * missing or expired, and gives children the selected property.
+ * missing or expired, and sends users with a temporary password to the change page.
+ * The server enforces the same rule; this redirect is only for convenience.
  */
-export function Shell({ title, children }: { title: string; children: (ctx: PropertyCtx) => ReactNode }) {
+export function Shell({ title, children, allowWhenMustChange = false }: {
+  title: string; children: (ctx: PropertyCtx) => ReactNode; allowWhenMustChange?: boolean;
+}) {
   const [propertyId, setPropertyIdState] = useState<string | null>(sessionStorage.getItem('pms.property'));
+  const here = window.location.pathname.split('/').pop() ?? '';
 
   const me = useQuery<Me, ApiError>({
     queryKey: ['auth.me'],
@@ -47,12 +55,25 @@ export function Shell({ title, children }: { title: string; children: (ctx: Prop
     }
   }, [me.error]);
 
+  useEffect(() => {
+    if (me.data?.user.must_change_password && !allowWhenMustChange) {
+      window.location.replace('password.html');
+    }
+  }, [me.data, allowWhenMustChange]);
+
   if (me.error && me.error.code !== 'UNAUTHENTICATED') {
     return <div className="p-8 text-red-700">Could not load your account: {me.error.message}</div>;
   }
   if (me.isLoading || !me.data) {
-    return <div className="p-8 text-slate-500">Loading…</div>;
+    return (
+      <div className="flex min-h-screen items-center justify-center text-slate-500">
+        <span className="spin mr-3 inline-block h-5 w-5 rounded-full border-2 border-slate-400 border-t-transparent" />
+        Loading…
+      </div>
+    );
   }
+  if (me.data.user.must_change_password && !allowWhenMustChange) return null;
+
   const data = me.data;
   const properties = data.properties;
   const selected = properties.find((p) => p.property_id === propertyId) ?? properties[0] ?? null;
@@ -68,38 +89,56 @@ export function Shell({ title, children }: { title: string; children: (ctx: Prop
     window.location.replace('index.html');
   };
 
+  const linkClass = (active: boolean) =>
+    `group flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-all duration-200 hover:translate-x-0.5 hover:bg-slate-100 ${active ? 'bg-slate-900 text-white hover:bg-slate-800' : 'text-slate-700'}`;
+
   return (
     <Ctx.Provider value={{ me: data, propertyId: selected?.property_id ?? null, setPropertyId }}>
       <div className="flex min-h-screen bg-slate-50 text-slate-900">
-        <aside className="w-56 shrink-0 border-r border-slate-200 bg-white p-4">
-          <div className="mb-6 text-lg font-semibold">Hotel PMS</div>
+        <aside className="anim-fade-up flex w-60 shrink-0 flex-col border-r border-slate-200 bg-white p-4">
+          <div className="mb-6 flex items-center gap-2 px-2 text-lg font-semibold">
+            <span className="grid h-8 w-8 place-items-center rounded-md bg-slate-900 text-white"><Icon name="home" size={16} /></span>
+            Hotel PMS
+          </div>
           <nav className="space-y-1">
-            {NAV.filter((n) => n.visible(data)).map((n) => (
-              <a key={n.href} href={n.href}
-                className={`block rounded px-3 py-2 text-sm hover:bg-slate-100 ${window.location.pathname.endsWith(n.href) ? 'bg-slate-100 font-medium' : ''}`}>
-                {n.label}
-              </a>
-            ))}
+            {NAV.filter((n) => n.visible(data)).map((n) => {
+              const active = here === n.href;
+              return (
+                <a key={n.href} href={n.href} className={linkClass(active)}>
+                  <Icon name={n.icon} size={16} className={active ? '' : 'text-slate-400 transition-colors group-hover:text-slate-800'} />
+                  {n.label}
+                </a>
+              );
+            })}
           </nav>
-          <div className="mt-8 text-xs text-slate-500">
-            Signed in as {data.user.display_name}
-            <button onClick={signOut} className="mt-2 block text-slate-700 underline">Sign out</button>
+          <div className="mt-auto space-y-2 border-t border-slate-100 pt-4 text-xs text-slate-500">
+            <div className="px-2">Signed in as <span className="font-medium text-slate-700">{data.user.display_name}</span></div>
+            <a href="password.html" className={linkClass(here === 'password.html')}>
+              <Icon name="key" size={16} className="text-slate-400 group-hover:text-slate-800" />
+              Change password
+            </a>
+            <button onClick={signOut} className={`${linkClass(false)} w-full text-left`}>
+              <Icon name="logout" size={16} className="text-slate-400 group-hover:text-slate-800" />
+              Sign out
+            </button>
           </div>
         </aside>
-        <main className="flex-1 p-6">
-          <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
-            <h1 className="text-2xl font-semibold">{title}</h1>
+        <main className="min-w-0 flex-1 p-6">
+          <header className="anim-fade-up mb-6 flex flex-wrap items-center justify-between gap-4">
+            <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
             {properties.length > 0 && (
-              <label className="text-sm">
-                Property{' '}
-                <select className="ml-2 rounded border border-slate-300 bg-white px-2 py-1"
+              <label className="flex items-center gap-2 text-sm">
+                <span className="text-slate-600">Property</span>
+                <select className="rounded-md border border-slate-300 bg-white px-3 py-1.5 outline-none transition hover:border-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-200"
                   value={selected?.property_id ?? ''} onChange={(e) => setPropertyId(e.target.value)}>
                   {properties.map((p) => (
                     <option key={p.property_id} value={p.property_id}>{p.code} · {p.name}</option>
                   ))}
                 </select>
                 {selected && (
-                  <span className="ml-3 text-slate-500">Business date {selected.business_date}</span>
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
+                    Business date {selected.business_date}
+                  </span>
                 )}
               </label>
             )}

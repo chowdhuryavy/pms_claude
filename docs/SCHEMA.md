@@ -55,13 +55,37 @@ Generated from `apps-script/src/00_config.js`. Do not edit by hand.
 | `org_id` |
 | `username` |
 | `display_name` |
+| `email` |
 | `password_hash` |
 | `salt` |
 | `status` |
 | `role_ids` |
 | `property_ids` |
+| `must_change_password` |
+| `password_changed_at` |
 | `failed_logins` |
 | `locked_until` |
+| `created_at` |
+| `created_by` |
+| `updated_at` |
+| `updated_by` |
+| `version` |
+
+## Email_Settings
+
+- Spreadsheet domain: `DB_CORE`
+- Key column: `setting_id`
+- Append only: no
+
+| Column |
+| --- |
+| `setting_id` |
+| `provider` |
+| `is_active` |
+| `from_name` |
+| `from_email` |
+| `app_url` |
+| `resend_key_hint` |
 | `created_at` |
 | `created_by` |
 | `updated_at` |

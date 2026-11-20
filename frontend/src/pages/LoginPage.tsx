@@ -1,19 +1,10 @@
 import { useState, type FormEvent } from 'react';
 import { callApi } from '../lib/api';
 import { setToken, getToken } from '../lib/session';
+import { landingFor } from '../lib/nav';
 import type { Me } from '../lib/hooks';
-import { Button, Field, Notice, inputClass, errorText } from '../components/ui';
-
-/** Sends the user to the first portal their grants allow. */
-function landingFor(me: Me): string {
-  const fns = Object.keys(me.grants);
-  if (me.is_system_admin || fns.some((f) => f.startsWith('ADMIN.'))) return 'admin.html';
-  if (fns.some((f) => f.startsWith('RES.') || f.startsWith('FO.'))) return 'frontdesk.html';
-  if (fns.some((f) => f.startsWith('CASH.'))) return 'cashier.html';
-  if (fns.some((f) => f.startsWith('AUDIT.') || f.startsWith('RPT.'))) return 'audit.html';
-  if (fns.some((f) => f.startsWith('CFG.'))) return 'property.html';
-  return 'index.html';
-}
+import { Button, Field, Notice, inputClass, errorText, SecretInput } from '../components/ui';
+import { Icon } from '../components/Icon';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
@@ -38,24 +29,33 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 p-6">
-      <form onSubmit={submit} className="w-full max-w-sm rounded-lg bg-white p-8 shadow">
-        <h1 className="mb-1 text-xl font-semibold">Sign in</h1>
-        <p className="mb-6 text-sm text-slate-500">Hotel PMS and ERP</p>
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-slate-100 via-white to-slate-200 p-6">
+      <div className="pointer-events-none absolute -left-20 -top-20 h-72 w-72 rounded-full bg-slate-300/30 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-24 -right-16 h-80 w-80 rounded-full bg-slate-400/20 blur-3xl" />
+      <form onSubmit={submit} className="anim-pop relative w-full max-w-sm rounded-xl bg-white p-8 shadow-xl ring-1 ring-slate-200">
+        <div className="mb-6 flex items-center gap-3">
+          <span className="grid h-10 w-10 place-items-center rounded-lg bg-slate-900 text-white"><Icon name="lock" size={18} /></span>
+          <div>
+            <h1 className="text-xl font-semibold">Sign in</h1>
+            <p className="text-sm text-slate-500">Hotel PMS and ERP</p>
+          </div>
+        </div>
         {error && <Notice kind="error">{error}</Notice>}
         {getToken() && <Notice kind="info">You have an active session in this tab.</Notice>}
         <div className="space-y-4">
           <Field label="Username">
-            <input className={inputClass} autoComplete="username" value={username}
+            <input className={inputClass} autoComplete="username" value={username} autoFocus
               onChange={(e) => setUsername(e.target.value)} required />
           </Field>
           <Field label="Password">
-            <input className={inputClass} type="password" autoComplete="current-password" value={password}
-              onChange={(e) => setPassword(e.target.value)} required />
+            <SecretInput value={password} onChange={setPassword} autoComplete="current-password" required />
           </Field>
-          <Button type="submit" disabled={busy} className="w-full py-2">
+          <Button type="submit" loading={busy} icon="logIn" className="w-full py-2.5">
             {busy ? 'Signing in…' : 'Sign in'}
           </Button>
+          <p className="text-center text-xs text-slate-500">
+            New here or using a temporary password? Sign in, then you will be asked to choose your own.
+          </p>
         </div>
       </form>
     </div>

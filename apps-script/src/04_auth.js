@@ -52,6 +52,8 @@ var Auth = (function () {
       org_id: user.org_id,
       username: user.username,
       display_name: user.display_name,
+      email: user.email || '',
+      must_change_password: String(user.must_change_password) === 'true',
       status: user.status,
       role_ids: splitList(user.role_ids),
       property_ids: splitList(user.property_ids)
@@ -139,7 +141,29 @@ var Auth = (function () {
     }
   }
 
-  return { login: login, resolve: resolve, logout: logout, publicUser: publicUser, splitList: splitList };
+  /**
+   * Revokes every live session of a user, except the one whose hash is keepHash.
+   * Used after a password change or reset so old sign-ins stop working.
+   */
+  function revokeSessions(userId, keepHash) {
+    var latest = {};
+    Store.list('Sessions', function (s) { return s.user_id === userId; }).forEach(function (s) {
+      latest[s.token_hash] = s;
+    });
+    Object.keys(latest).forEach(function (hash) {
+      var s = latest[hash];
+      if (hash === keepHash || String(s.revoked) === 'true') return;
+      Store.insert('Sessions', {
+        token_hash: hash, user_id: userId, created_at: Dates.now(),
+        expires_at: s.expires_at, revoked: 'true'
+      }, userId);
+    });
+  }
+
+  return {
+    login: login, resolve: resolve, logout: logout, publicUser: publicUser, splitList: splitList,
+    revokeSessions: revokeSessions, hashToken: function (t) { return Hash.sha256Hex(String(t)); }
+  };
 })();
 
 var Perm = (function () {

@@ -153,7 +153,9 @@ var Admin = (function () {
       users = users.filter(function (u) { return Auth.splitList(u.property_ids).indexOf(p.property_id) !== -1; });
     }
     return Paging.page(users.map(function (u) {
-      return { user_id: u.user_id, username: u.username, display_name: u.display_name, status: u.status,
+      return { user_id: u.user_id, username: u.username, display_name: u.display_name, email: u.email || '',
+        status: u.status, must_change_password: String(u.must_change_password) === 'true',
+        password_changed_at: u.password_changed_at || '',
         role_ids: Auth.splitList(u.role_ids), property_ids: Auth.splitList(u.property_ids), version: u.version };
     }), p);
   }
@@ -180,22 +182,33 @@ var Admin = (function () {
     if (Perm.isSystemUser(ctx.user) && p.org_id) orgId = Validate.text(p.org_id, 'org_id', 60);
     if (orgId === '*') throw new PmsError('VALIDATION', 'Users must belong to an organization');
     Store.mustGet('Organizations', orgId);
-    var salt = Hash.newSalt();
+    var email = Validate.email(p.email);
+    if (!email) throw new PmsError('VALIDATION', 'email is required, so the temporary password can be sent');
+    // The administrator never chooses or sees the password. It is generated here and emailed.
+    var temp = Account.prepareTemporary();
     var row = Store.insert('Users', {
       org_id: orgId,
       username: username,
       display_name: Validate.text(p.display_name, 'display_name', 120),
-      password_hash: Hash.passwordHash(assertPasswordPolicy(p.password), salt),
-      salt: salt,
+      email: email,
+      password_hash: temp.password_hash,
+      salt: temp.salt,
       status: 'ACTIVE',
       role_ids: roleIds.join(','),
       property_ids: propertyIds.join(','),
+      must_change_password: 'true',
+      password_changed_at: '',
       failed_logins: 0,
       locked_until: ''
     }, ctx.user.user_id);
+    var mail = Account.sendTemporary(row, temp.password, 'create');
     Audit.record(ctx, 'ADMIN.USER', 'CREATE', 'Users', row.user_id, null,
-      { user_id: row.user_id, username: username, role_ids: roleIds, property_ids: propertyIds });
-    return { user_id: row.user_id, username: username, status: 'ACTIVE' };
+      { user_id: row.user_id, username: username, role_ids: roleIds, property_ids: propertyIds,
+        email_sent: mail.sent, provider: mail.provider }, null);
+    return {
+      user_id: row.user_id, username: username, status: 'ACTIVE',
+      email_sent: mail.sent, provider: mail.provider, reason: mail.sent ? '' : mail.reason
+    };
   }
 
   function usersSetStatus(ctx, p) {

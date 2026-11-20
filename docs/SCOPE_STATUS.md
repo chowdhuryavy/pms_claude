@@ -73,7 +73,15 @@ are in `docs/REPORTS.md`.
 postings and audit runs records before and after values with user, function ID and
 time. The audit viewer is filtered by property and paged.
 
-**Frontend portals.** Six separate HTML pages, one per portal: sign-in, administration
+**Email and passwords.** Email settings (System Administrator only): Resend API or Google
+account mail, active switch, sender, app address, and a test send. Resend is the fallback
+when the active provider fails. The API key is stored in Script Properties and is never
+shown again. New users and admin resets receive a random temporary password by email and
+must change it at first sign-in. The server blocks every other action until they do. Users
+can change their password at any time; the page shows live rules and a match check.
+Changing a password signs out other sessions. Emails are HTML with a plain-text part.
+
+**Frontend portals.** Six separate HTML pages, one per portal, plus a password page: sign-in, administration
 (organizations, properties, users, roles and approval limits, permission matrix,
 module flags, audit log), property setup, front desk (rack, arrivals, departures,
 availability and booking, reservation list with check-in, check-out, no-show and
@@ -86,6 +94,8 @@ enforces the same rules.
 These are part of the original brief and are not implemented:
 
 - **Multi-factor authentication.** Not implemented. The brief asks for it where supported.
+- **Plain SMTP.** Apps Script cannot open SMTP connections. Use Resend or Google account mail, or an HTTPS relay that can be added as another provider.
+- **Email delivery retries and a delivery log.** A failed send is reported once, with the reason. It is not queued for retry.
 - **Engineering module.** Maintenance requests, work orders, preventive maintenance, equipment register.
 - **Housekeeping detail.** Cleaning assignments, inspections as a workflow, discrepancies, lost and found, linen tracking. Only room housekeeping status exists.
 - **Purchasing and inventory.** Suppliers, requisitions, purchase orders, goods receipts, stock transfers, valuation, counts.

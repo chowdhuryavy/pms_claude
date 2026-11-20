@@ -48,8 +48,14 @@ var SCHEMA = {
   },
   Users: {
     domain: 'DB_CORE', key: 'user_id',
-    headers: ['user_id', 'org_id', 'username', 'display_name', 'password_hash', 'salt', 'status', 'role_ids',
-      'property_ids', 'failed_logins', 'locked_until', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version']
+    headers: ['user_id', 'org_id', 'username', 'display_name', 'email', 'password_hash', 'salt', 'status', 'role_ids',
+      'property_ids', 'must_change_password', 'password_changed_at', 'failed_logins', 'locked_until',
+      'created_at', 'created_by', 'updated_at', 'updated_by', 'version']
+  },
+  Email_Settings: {
+    domain: 'DB_CORE', key: 'setting_id',
+    headers: ['setting_id', 'provider', 'is_active', 'from_name', 'from_email', 'app_url', 'resend_key_hint',
+      'created_at', 'created_by', 'updated_at', 'updated_by', 'version']
   },
   Roles: {
     domain: 'DB_CORE', key: 'role_id',
@@ -131,6 +137,7 @@ var FUNCTIONS = {
   'ADMIN.PERM':      { module: null, label: 'Permission matrix' },
   'ADMIN.FLAG':      { module: null, label: 'Feature flags' },
   'ADMIN.AUDIT':     { module: null, label: 'Audit log' },
+  'ADMIN.EMAIL':     { module: null, label: 'Email configuration' },
   'CFG.ROOMTYPE':    { module: 'CONFIG', label: 'Room types' },
   'CFG.ROOM':        { module: 'CONFIG', label: 'Rooms' },
   'CFG.CODE':        { module: 'CONFIG', label: 'Rate, transaction, market, source, package and payment codes' },

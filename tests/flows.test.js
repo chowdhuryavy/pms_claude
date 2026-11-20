@@ -22,12 +22,19 @@ function login(env, username, password) {
   return env.ctx.Api.dispatch({ action: 'auth.login', payload: { username, password } }).token;
 }
 
-/** Creates a user with one role on one property. */
+/**
+ * Creates a user, then signs in with the temporary password from the email and
+ * sets the chosen password, as a real user would on first sign-in.
+ */
 function makeUser(env, username, roleId, propertyIds, password) {
-  return env.call('admin.users.create', {
-    username, display_name: username, password: password || 'Staff-Pass-123',
+  const created = env.call('admin.users.create', {
+    username, display_name: username, email: `${username}@example.com`,
     role_ids: [roleId], property_ids: propertyIds
   });
+  const temp = env.tempPassword(username);
+  const token = env.ctx.Api.dispatch({ action: 'auth.login', payload: { username, password: temp } }).token;
+  env.call('auth.change_password', { current_password: temp, new_password: password || 'Staff-Pass-123' }, token);
+  return created;
 }
 
 function grant(env, roleId, fn, levels) {

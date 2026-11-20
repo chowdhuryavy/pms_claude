@@ -15,6 +15,21 @@
 - Responses for unexpected errors are generic. Stack traces stay in Apps Script logs.
 - Money and folio balances are computed on the server from ledger rows.
 
+## Passwords and email
+
+- Temporary passwords are random (16 hex characters in four groups) and are generated on
+  the server. Administrators never choose or see them.
+- A new user or a reset user must change the password at first sign-in. Until then the
+  server refuses every action except viewing their own account and changing the password.
+- Changing or resetting a password signs out the user's other sessions.
+- Temporary passwords are sent only by email. They are not written to any sheet or to the
+  audit log, and the API never returns them.
+- Email API keys are stored in Script Properties. Google encrypts these at rest. They are
+  never returned to the browser; only the last four characters are shown.
+- Apps Script has no built-in encryption library. The protection is Google's storage
+  encryption plus access control: only people with editor access to the Apps Script
+  project can read the key.
+
 ## Secrets and configuration
 
 - Sheet IDs are stored in Apps Script Script Properties, not in source.
@@ -34,6 +49,7 @@
 - The frontend keeps the session token in `sessionStorage`. A script injection
   could read it. The Content Security Policy in `frontend/vercel.json` reduces this risk.
 - Logs of every login attempt are not yet exported to a SIEM.
+- Plain SMTP is not supported, because Apps Script cannot open SMTP connections.
 
 ## Reporting a vulnerability
 

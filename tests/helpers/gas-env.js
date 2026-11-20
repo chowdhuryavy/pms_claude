@@ -12,7 +12,8 @@ const SRC = path.join(__dirname, '..', '..', 'apps-script', 'src');
 const FILES = [
   '00_config.js', '01_core.js', '02_store.js', '03_sheets_backend.js', '04_auth.js',
   '05_audit.js', '06_admin.js', '07_config_svc.js', '08_reservations.js', '09_cashier.js',
-  '10_frontoffice.js', '11_night_audit.js', '12_reports.js', '13_setup.js', '14_api.js'
+  '10_frontoffice.js', '11_night_audit.js', '12_reports.js', '13_setup.js', '14_api.js',
+  '15_mail.js', '16_account.js'
 ];
 
 function signedBytes(buffer) {
@@ -40,7 +41,24 @@ function memoryBackend() {
 function createEnv() {
   const props = {};
   const cache = new Map();
+  // Every message the app tries to send. Tests read temporary passwords from here.
+  const outbox = [];
+  const mail = { resendStatus: 200, googleFails: false };
   const sandbox = {
+    UrlFetchApp: {
+      fetch(url, opts) {
+        const body = JSON.parse(opts.payload);
+        outbox.push({ provider: 'RESEND', url, auth: opts.headers.Authorization, to: body.to[0],
+          from: body.from, subject: body.subject, html: body.html, text: body.text });
+        return { getResponseCode: () => mail.resendStatus, getContentText: () => '' };
+      }
+    },
+    MailApp: {
+      sendEmail(m) {
+        if (mail.googleFails) throw new Error('MailApp quota exceeded');
+        outbox.push({ provider: 'GOOGLE', to: m.to, subject: m.subject, html: m.htmlBody, text: m.body, from: m.name });
+      }
+    },
     console: { log() {}, error() {}, warn() {} },
     Logger: { log() {} },
     Utilities: {
@@ -52,7 +70,8 @@ function createEnv() {
     PropertiesService: {
       getScriptProperties: () => ({
         getProperty: (k) => (k in props ? props[k] : null),
-        setProperty: (k, v) => { props[k] = v; }
+        setProperty: (k, v) => { props[k] = v; },
+        deleteProperty: (k) => { delete props[k]; }
       })
     },
     LockService: {
@@ -73,7 +92,7 @@ function createEnv() {
   }
   const backend = memoryBackend();
   sandbox.Store.setBackend(backend);
-  return { ctx: sandbox, backend, props, cache };
+  return { ctx: sandbox, backend, props, cache, outbox, mail };
 }
 
 /** Builds a small world: one org, one active property, a system admin, and a role/user helper. */
@@ -87,6 +106,18 @@ function bootstrap() {
     g.Api.dispatch({ action, payload: payload || {}, token: token === undefined ? env.adminToken : token, idempotency_key: key });
   const org = env.call('admin.orgs.create', { name: 'Test Hotels' });
   env.orgId = org.org_id;
+  // Resend is configured by default, so user creation and resets send mail in tests.
+  env.call('admin.email.save', {
+    provider: 'RESEND', is_active: true, from_name: 'Hotel PMS', from_email: 'no-reply@example.com',
+    app_url: 'https://pms.example.com', resend_api_key: 're_test_key_0123456789abcdef'
+  });
+  // The most recent temporary password sent to an address. Returns null if none.
+  env.tempPassword = (username) => {
+    const msgs = env.outbox.filter((m) => m.to === username + '@example.com');
+    const last = msgs[msgs.length - 1];
+    const match = last && last.text.match(/Temporary password: (\S+)/);
+    return match ? match[1] : null;
+  };
   return env;
 }
 
