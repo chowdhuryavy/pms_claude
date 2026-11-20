@@ -27,13 +27,14 @@ const PATHS: Record<IconName, ReactNode> = {
   spark: <path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6" />,
   logIn: <><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3" /></>,
   home: <><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><path d="M9 22V12h6v10" /></>,
-  user: <><circle cx="12" cy="8" r="4" /><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1" /></>
+  user: <><circle cx="12" cy="8" r="4" /><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1" /></>,
+  menu: <path d="M3 6h18M3 12h18M3 18h18" />
 };
 
 export type IconName =
   | 'check' | 'x' | 'alert' | 'info' | 'eye' | 'eyeOff' | 'mail' | 'key' | 'shield' | 'logout' | 'send'
   | 'copy' | 'refresh' | 'sliders' | 'building' | 'users' | 'lock' | 'chart' | 'calendar' | 'wallet'
-  | 'chevron' | 'zap' | 'spark' | 'home' | 'logIn' | 'user';
+  | 'chevron' | 'zap' | 'spark' | 'home' | 'logIn' | 'user' | 'menu';
 
 export function Icon({ name, size = 18, className = '' }: { name: IconName; size?: number; className?: string }) {
   return (
