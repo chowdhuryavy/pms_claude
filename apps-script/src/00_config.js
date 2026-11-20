@@ -39,7 +39,7 @@ var DOMAIN_PROP = {
 var SCHEMA = {
   Organizations: {
     domain: 'DB_CORE', key: 'org_id',
-    headers: ['org_id', 'name', 'status', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version']
+    headers: ['org_id', 'name', 'status', 'license_start', 'license_end', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version']
   },
   Properties: {
     domain: 'DB_CORE', key: 'property_id',

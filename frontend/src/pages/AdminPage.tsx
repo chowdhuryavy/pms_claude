@@ -1,4 +1,5 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { Icon } from '../components/Icon';
 import { Shell, Can, usePortal } from '../components/Shell';
 import { Badge, Button, Field, Notice, Panel, Table, Tabs, inputClass, errorText, type TabDef } from '../components/ui';
 import { EmailSettingsPanel } from '../components/EmailSettings';
@@ -8,7 +9,10 @@ import { normalizeMoneyInput, todayIso } from '../lib/format';
 const LEVELS = ['View', 'Create', 'Edit', 'Delete', 'Approve', 'Execute', 'Export', 'Full Access'];
 const MODULES = ['CONFIG', 'RESERVATIONS', 'FRONT_OFFICE', 'CASHIERING', 'NIGHT_AUDIT', 'REPORTING'];
 
-interface Org { org_id: string; name: string; status: string }
+interface Org {
+  org_id: string; name: string; status: string; license_start: string; license_end: string;
+  property_count: number; version: number;
+}
 interface Property {
   property_id: string; org_id: string; code: string; name: string; status: string; currency: string;
   timezone: string; business_date: string; license_rooms: number; user_limit: number; version: number;
@@ -24,27 +28,181 @@ interface AuditRow { at: string; user_id: string; function_id: string; action: s
 interface CatalogRow { function_id: string; label: string; module: string | null }
 interface PermRow { perm_id: string; function_id: string; levels: string }
 
+function plusOneYearIso(): string {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+function licenseState(o: Org): { label: string; tone: 'ok' | 'warn' | 'bad' } {
+  const today = todayIso();
+  if (!o.license_start || !o.license_end) return { label: 'No license dates', tone: 'bad' };
+  if (today < o.license_start) return { label: 'Not started', tone: 'warn' };
+  if (today > o.license_end) return { label: 'Expired', tone: 'bad' };
+  return { label: 'Licensed', tone: 'ok' };
+}
+
+function Detail({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div>
+      <dt className="text-xs uppercase tracking-wide text-slate-500">{label}</dt>
+      <dd className="mt-0.5 break-words font-medium text-slate-900">{children}</dd>
+    </div>
+  );
+}
+
 function OrgSection() {
   const orgs = useApiQuery<Page<Org>>('admin.orgs.list', {}, true);
-  const [name, setName] = useState('');
+  const [form, setForm] = useState({ name: '', license_start: todayIso(), license_end: plusOneYearIso() });
+  const [editing, setEditing] = useState<Org | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', license_start: '', license_end: '' });
+  const [viewing, setViewing] = useState<Org | null>(null);
+  const [confirming, setConfirming] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const create = useApiAction('admin.orgs.create', () => setName(''));
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const report = (e: unknown) => { setNotice(null); setError(errorText(e)); };
+  const done = (text: string) => { setError(null); setNotice(text); };
+
+  const create = useApiAction('admin.orgs.create', () => {
+    setForm({ name: '', license_start: todayIso(), license_end: plusOneYearIso() });
+    done('Organization added.');
+  });
+  const update = useApiAction('admin.orgs.update', () => { setEditing(null); done('Organization updated.'); });
+  const setStatus = useApiAction('admin.orgs.status', () => done('Status changed.'));
+  const remove = useApiAction('admin.orgs.delete', () => {
+    setConfirming(null);
+    setViewing(null);
+    done('Organization deleted.');
+  });
+
+  const startEdit = (o: Org) => {
+    setViewing(null);
+    setEditing(o);
+    setEditForm({ name: o.name, license_start: o.license_start || todayIso(), license_end: o.license_end || plusOneYearIso() });
+    setError(null);
+    setNotice(null);
+  };
+
   return (
-    <Panel title="Organizations">
+    <Panel title="Organizations" icon="building"
+      actions={<span className="text-sm text-slate-500">{orgs.data?.total ?? 0} in total</span>}>
       {error && <Notice kind="error">{error}</Notice>}
+      {notice && <Notice kind="ok">{notice}</Notice>}
+
       <Can fn="ADMIN.ORG" level="Create">
-        <form className="mb-4 flex gap-2" onSubmit={(e: FormEvent) => {
-          e.preventDefault(); setError(null);
-          create.mutate({ name }, { onError: (err) => setError(errorText(err)) });
-        }}>
-          <input className={inputClass} placeholder="Organization name" value={name} onChange={(e) => setName(e.target.value)} required />
-          <Button type="submit" loading={create.isPending}>Add</Button>
+        <form className="mb-6 grid gap-3 rounded-lg border border-slate-200 bg-slate-50/60 p-4 md:grid-cols-4"
+          onSubmit={(e: FormEvent) => {
+            e.preventDefault(); setError(null);
+            create.mutate({ ...form }, { onError: report });
+          }}>
+          <Field label="Organization name">
+            <input className={inputClass} required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          </Field>
+          <Field label="License start">
+            <input type="date" className={inputClass} required value={form.license_start}
+              onChange={(e) => setForm({ ...form, license_start: e.target.value })} />
+          </Field>
+          <Field label="License end">
+            <input type="date" className={inputClass} required min={form.license_start} value={form.license_end}
+              onChange={(e) => setForm({ ...form, license_end: e.target.value })} />
+          </Field>
+          <div className="flex items-end">
+            <Button type="submit" icon="check" loading={create.isPending} className="w-full">Add organization</Button>
+          </div>
         </form>
       </Can>
+
+      {editing && (
+        <form className="anim-pop mb-6 grid gap-3 rounded-lg border border-slate-300 bg-white p-4 shadow-sm md:grid-cols-4"
+          onSubmit={(e: FormEvent) => {
+            e.preventDefault(); setError(null);
+            update.mutate({ org_id: editing.org_id, version: editing.version, ...editForm }, { onError: report });
+          }}>
+          <p className="flex items-center gap-2 text-sm font-semibold md:col-span-4">
+            <Icon name="building" size={16} /> Editing {editing.name}
+          </p>
+          <Field label="Organization name">
+            <input className={inputClass} required value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
+          </Field>
+          <Field label="License start">
+            <input type="date" className={inputClass} required value={editForm.license_start}
+              onChange={(e) => setEditForm({ ...editForm, license_start: e.target.value })} />
+          </Field>
+          <Field label="License end">
+            <input type="date" className={inputClass} required min={editForm.license_start} value={editForm.license_end}
+              onChange={(e) => setEditForm({ ...editForm, license_end: e.target.value })} />
+          </Field>
+          <div className="flex items-end gap-2">
+            <Button type="submit" icon="check" loading={update.isPending} className="flex-1">Save</Button>
+            <Button type="button" variant="secondary" onClick={() => setEditing(null)}>Cancel</Button>
+          </div>
+        </form>
+      )}
+
+      {viewing && (
+        <div className="anim-pop mb-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <h3 className="text-base font-semibold">{viewing.name}</h3>
+            <Button variant="ghost" icon="x" onClick={() => setViewing(null)}>Close</Button>
+          </div>
+          <dl className="grid gap-4 text-sm sm:grid-cols-2 md:grid-cols-4">
+            <Detail label="Status">{viewing.status === 'ACTIVE' ? 'Active' : 'Inactive'}</Detail>
+            <Detail label="License start">{viewing.license_start || '—'}</Detail>
+            <Detail label="License end">{viewing.license_end || '—'}</Detail>
+            <Detail label="License state">{licenseState(viewing).label}</Detail>
+            <Detail label="Properties">{viewing.property_count}</Detail>
+            <Detail label="ID"><code className="text-xs">{viewing.org_id}</code></Detail>
+          </dl>
+        </div>
+      )}
+
       <Table<Org> rowKey={(o) => o.org_id} rows={orgs.data?.items ?? []} columns={[
-        { header: 'Name', render: (o) => o.name },
-        { header: 'Status', render: (o) => o.status },
-        { header: 'ID', render: (o) => <code className="text-xs">{o.org_id}</code> }
+        { header: 'Name', render: (o) => (
+          <div>
+            <div className="font-medium">{o.name}</div>
+            <div className="text-xs text-slate-500">{o.property_count} {o.property_count === 1 ? 'property' : 'properties'}</div>
+          </div>
+        ) },
+        { header: 'Status', render: (o) => (
+          <Badge tone={o.status === 'ACTIVE' ? 'ok' : 'warn'}>{o.status === 'ACTIVE' ? 'Active' : 'Inactive'}</Badge>
+        ) },
+        { header: 'License', render: (o) => {
+          const st = licenseState(o);
+          return (
+            <div className="space-y-1">
+              <Badge tone={st.tone}>{st.label}</Badge>
+              <div className="text-xs text-slate-500">{o.license_start || '—'} to {o.license_end || '—'}</div>
+            </div>
+          );
+        } },
+        { header: 'Actions', align: 'right', render: (o) => (
+          <div className="flex flex-wrap justify-end gap-1.5">
+            <Button variant="ghost" icon="eye" onClick={() => { setEditing(null); setViewing(o); }}>View</Button>
+            <Can fn="ADMIN.ORG" level="Edit">
+              <Button variant="secondary" icon="sliders" onClick={() => startEdit(o)}>Edit</Button>
+              <Button variant="ghost" loading={setStatus.isPending && setStatus.variables?.org_id === o.org_id}
+                onClick={() => setStatus.mutate({
+                  org_id: o.org_id, status: o.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE', version: o.version
+                }, { onError: report })}>
+                {o.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
+              </Button>
+            </Can>
+            <Can fn="ADMIN.ORG" level="Delete">
+              {confirming === o.org_id ? (
+                <>
+                  <Button variant="danger" loading={remove.isPending}
+                    onClick={() => remove.mutate({ org_id: o.org_id, version: o.version }, { onError: report })}>
+                    Confirm delete
+                  </Button>
+                  <Button variant="ghost" onClick={() => setConfirming(null)}>Cancel</Button>
+                </>
+              ) : (
+                <Button variant="ghost" onClick={() => setConfirming(o.org_id)}>Delete</Button>
+              )}
+            </Can>
+          </div>
+        ) }
       ]} />
     </Panel>
   );
@@ -366,24 +524,36 @@ function AuditSection() {
 }
 
 const TABS: TabDef[] = [
-  { id: 'overview', label: 'Organizations', icon: 'building' },
+  { id: 'orgs', label: 'Organizations', icon: 'building' },
+  { id: 'properties', label: 'Properties', icon: 'sliders' },
   { id: 'users', label: 'Users', icon: 'users' },
-  { id: 'access', label: 'Roles and access', icon: 'shield' },
+  { id: 'roles', label: 'Roles and limits', icon: 'shield' },
+  { id: 'permissions', label: 'Permissions', icon: 'key' },
+  { id: 'flags', label: 'Modules', icon: 'zap' },
   { id: 'email', label: 'Email', icon: 'mail' },
   { id: 'audit', label: 'Audit log', icon: 'chart' }
 ];
 
 export default function AdminPage() {
-  const [tab, setTab] = useState('overview');
+  // The tab is kept in the address (#orgs, #users, ...) so a refresh stays on the same section.
+  const fromHash = window.location.hash.slice(1);
+  const [tab, setTabState] = useState(TABS.some((t) => t.id === fromHash) ? fromHash : 'orgs');
+  const setTab = (id: string) => {
+    setTabState(id);
+    window.history.replaceState(null, '', '#' + id);
+  };
   return (
     <Shell title="Administration">
       {() => (
         <>
           <Tabs tabs={TABS} active={tab} onChange={setTab} />
           <div key={tab} className="anim-fade-up">
-            {tab === 'overview' && (<><OrgSection /><PropertySection /></>)}
+            {tab === 'orgs' && <OrgSection />}
+            {tab === 'properties' && <PropertySection />}
             {tab === 'users' && <UserSection />}
-            {tab === 'access' && (<><RoleSection /><PermissionMatrix /><FlagSection /></>)}
+            {tab === 'roles' && <RoleSection />}
+            {tab === 'permissions' && <PermissionMatrix />}
+            {tab === 'flags' && <FlagSection />}
             {tab === 'email' && <EmailSettingsPanel />}
             {tab === 'audit' && <AuditSection />}
           </div>

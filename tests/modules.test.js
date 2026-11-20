@@ -261,11 +261,53 @@ test('housekeeping tasks list for one business date', () => {
 
 test('organization, property and role lists return the paged shape the admin screens read', () => {
   const env = bootstrap();
-  env.call('admin.orgs.create', { name: 'Second Group' });
+  env.call('admin.orgs.create', { name: 'Second Group', license_start: '2026-01-01', license_end: '2099-12-31' });
   const orgs = env.call('admin.orgs.list', {});
   assert.ok(Array.isArray(orgs.items));
   assert.ok(orgs.items.some((o) => o.name === 'Second Group'));
   assert.equal(typeof orgs.total, 'number');
   assert.ok(Array.isArray(env.call('admin.properties.list', {}).items));
   assert.ok(Array.isArray(env.call('admin.roles.list', {}).items));
+});
+
+test('organizations need license dates, can be edited, deactivated and deleted', () => {
+  const env = bootstrap();
+  assert.throws(() => env.call('admin.orgs.create', { name: 'No dates' }), { code: 'VALIDATION' });
+  assert.throws(() => env.call('admin.orgs.create', { name: 'Backwards', license_start: '2030-01-01', license_end: '2029-01-01' }),
+    { code: 'VALIDATION' });
+
+  const org = env.call('admin.orgs.create', { name: 'Gulf Group', license_start: '2026-01-01', license_end: '2030-12-31' });
+  const edited = env.call('admin.orgs.update', { org_id: org.org_id, name: 'Gulf Hotels', license_end: '2031-12-31', version: org.version });
+  assert.equal(edited.name, 'Gulf Hotels');
+  assert.equal(edited.license_end, '2031-12-31');
+
+  const inactive = env.call('admin.orgs.status', { org_id: org.org_id, status: 'INACTIVE', version: edited.version });
+  assert.equal(inactive.status, 'INACTIVE');
+
+  const deleted = env.call('admin.orgs.delete', { org_id: org.org_id, version: inactive.version });
+  assert.equal(deleted.deleted, true);
+  assert.equal(env.call('admin.orgs.list', {}).items.some((o) => o.org_id === org.org_id), false, 'deleted organizations are hidden');
+});
+
+test('an organization with properties cannot be deleted, and an inactive one blocks its properties', () => {
+  const env = bootstrap();
+  const h = hotel(env);
+  const org = env.call('admin.orgs.list', {}).items.find((o) => o.name === 'Test Hotels');
+  assert.throws(() => env.call('admin.orgs.delete', { org_id: org.org_id, version: org.version }), { code: 'HAS_PROPERTIES' });
+
+  const off = env.call('admin.orgs.status', { org_id: org.org_id, status: 'INACTIVE', version: org.version });
+  assert.throws(() => env.call('res.availability', { property_id: h.pid, arrival: DAY, departure: '2026-11-22' }),
+    { code: 'PROPERTY_SUSPENDED' });
+  assert.throws(() => makeProperty(env, { org_id: org.org_id, code: 'NEW1', name: 'Another' }), { code: 'ORG_INACTIVE' });
+  env.call('admin.orgs.status', { org_id: org.org_id, status: 'ACTIVE', version: off.version });
+  assert.equal(env.call('res.availability', { property_id: h.pid, arrival: DAY, departure: '2026-11-22' }).length > 0, true);
+});
+
+test('an expired license blocks the organization properties', () => {
+  const env = bootstrap();
+  const h = hotel(env);
+  const org = env.call('admin.orgs.list', {}).items.find((o) => o.name === 'Test Hotels');
+  env.call('admin.orgs.update', { org_id: org.org_id, license_start: '2020-01-01', license_end: '2020-12-31', version: org.version });
+  assert.throws(() => env.call('res.availability', { property_id: h.pid, arrival: DAY, departure: '2026-11-22' }),
+    { code: 'LICENSE_EXPIRED' });
 });

@@ -51,18 +51,80 @@ var Admin = (function () {
 
   // ---- Organizations -------------------------------------------------------
 
+  function assertLicenseDates(start, end) {
+    Dates.assertIsoDate(start, 'license_start');
+    Dates.assertIsoDate(end, 'license_end');
+    if (start > end) throw new PmsError('VALIDATION', 'license_end must be on or after license_start');
+  }
+
+  /** Organizations marked DELETED are hidden. Each row carries its property count. */
   function orgsList(ctx, p) {
     Perm.authorize(ctx, 'ADMIN.ORG', 'View');
-    return Paging.page(Store.publicRows(Store.list('Organizations', function () { return true; })), p);
+    var counts = {};
+    Store.list('Properties', function () { return true; }).forEach(function (pr) {
+      counts[pr.org_id] = (counts[pr.org_id] || 0) + 1;
+    });
+    var rows = Store.list('Organizations', function (o) { return o.status !== 'DELETED'; });
+    return Paging.page(Store.publicRows(rows).map(function (o) {
+      return Object.assign(o, { property_count: counts[o.org_id] || 0 });
+    }), p);
   }
 
   function orgsCreate(ctx, p) {
     Perm.authorize(ctx, 'ADMIN.ORG', 'Create');
     requireSystem(ctx);
     var name = Validate.text(p.name, 'name', 120);
-    var row = Store.insert('Organizations', { name: name, status: 'ACTIVE' }, ctx.user.user_id);
+    assertLicenseDates(p.license_start, p.license_end);
+    var row = Store.insert('Organizations', {
+      name: name, status: 'ACTIVE', license_start: p.license_start, license_end: p.license_end
+    }, ctx.user.user_id);
     Audit.record(ctx, 'ADMIN.ORG', 'CREATE', 'Organizations', row.org_id, null, row);
     return Store.publicRow(row);
+  }
+
+  function liveOrg(orgId) {
+    var org = Store.mustGet('Organizations', orgId);
+    if (org.status === 'DELETED') throw new PmsError('NOT_FOUND', 'Organization not found', 404);
+    return org;
+  }
+
+  function orgsUpdate(ctx, p) {
+    Perm.authorize(ctx, 'ADMIN.ORG', 'Edit');
+    requireSystem(ctx);
+    var org = liveOrg(p.org_id);
+    var patch = {};
+    if (p.name !== undefined) patch.name = Validate.text(p.name, 'name', 120);
+    patch.license_start = p.license_start !== undefined ? p.license_start : org.license_start;
+    patch.license_end = p.license_end !== undefined ? p.license_end : org.license_end;
+    assertLicenseDates(patch.license_start, patch.license_end);
+    var result = Store.update('Organizations', org.org_id, patch, p.version, ctx.user.user_id);
+    Audit.record(ctx, 'ADMIN.ORG', 'UPDATE', 'Organizations', org.org_id, result.before, result.after);
+    return Store.publicRow(result.after);
+  }
+
+  /** INACTIVE blocks all of the organization's properties until set back to ACTIVE. */
+  function orgsSetStatus(ctx, p) {
+    Perm.authorize(ctx, 'ADMIN.ORG', 'Edit');
+    requireSystem(ctx);
+    var org = liveOrg(p.org_id);
+    var status = Validate.oneOf(p.status, 'status', ['ACTIVE', 'INACTIVE']);
+    var result = Store.update('Organizations', org.org_id, { status: status }, p.version, ctx.user.user_id);
+    Audit.record(ctx, 'ADMIN.ORG', 'STATUS', 'Organizations', org.org_id, result.before, result.after);
+    return Store.publicRow(result.after);
+  }
+
+  /** Soft delete. Refused while the organization still has properties. */
+  function orgsDelete(ctx, p) {
+    Perm.authorize(ctx, 'ADMIN.ORG', 'Delete');
+    requireSystem(ctx);
+    var org = liveOrg(p.org_id);
+    var hasProperties = Store.list('Properties', function (pr) { return pr.org_id === org.org_id; }).length > 0;
+    if (hasProperties) {
+      throw new PmsError('HAS_PROPERTIES', 'Remove or move its properties before deleting this organization', 409);
+    }
+    var result = Store.update('Organizations', org.org_id, { status: 'DELETED' }, p.version, ctx.user.user_id);
+    Audit.record(ctx, 'ADMIN.ORG', 'DELETE', 'Organizations', org.org_id, result.before, result.after);
+    return { org_id: org.org_id, deleted: true };
   }
 
   // ---- Properties and licensing -------------------------------------------
@@ -76,7 +138,7 @@ var Admin = (function () {
     Perm.authorize(ctx, 'ADMIN.PROPERTY', 'Create');
     requireSystem(ctx);
     var orgId = Validate.text(p.org_id, 'org_id', 60);
-    Store.mustGet('Organizations', orgId);
+    if (liveOrg(orgId).status !== 'ACTIVE') throw new PmsError('ORG_INACTIVE', 'The organization is inactive', 409);
     var code = Validate.text(p.code, 'code', 12).toUpperCase();
     if (Store.list('Properties', function (x) { return x.code === code; }).length) {
       throw new PmsError('DUPLICATE', 'Property code ' + code + ' already exists', 409);
@@ -344,7 +406,7 @@ var Admin = (function () {
   return {
     requireSystem: requireSystem,
     assertPasswordPolicy: assertPasswordPolicy,
-    orgsList: orgsList, orgsCreate: orgsCreate,
+    orgsList: orgsList, orgsCreate: orgsCreate, orgsUpdate: orgsUpdate, orgsSetStatus: orgsSetStatus, orgsDelete: orgsDelete,
     propertiesList: propertiesList, propertiesCreate: propertiesCreate,
     propertiesUpdate: propertiesUpdate, propertiesSetStatus: propertiesSetStatus,
     usersList: usersList, usersCreate: usersCreate, usersSetStatus: usersSetStatus,

@@ -38,6 +38,9 @@ var Api = (function () {
 
     'admin.orgs.list': route('ADMIN.ORG', 'View', false, function (c, p) { return Admin.orgsList(c, p); }),
     'admin.orgs.create': route('ADMIN.ORG', 'Create', true, function (c, p) { return Admin.orgsCreate(c, p); }),
+    'admin.orgs.update': route('ADMIN.ORG', 'Edit', true, function (c, p) { return Admin.orgsUpdate(c, p); }),
+    'admin.orgs.status': route('ADMIN.ORG', 'Edit', true, function (c, p) { return Admin.orgsSetStatus(c, p); }),
+    'admin.orgs.delete': route('ADMIN.ORG', 'Delete', true, function (c, p) { return Admin.orgsDelete(c, p); }),
     'admin.properties.list': route('ADMIN.PROPERTY', 'View', false, function (c, p) { return Admin.propertiesList(c, p); }),
     'admin.properties.create': route('ADMIN.PROPERTY', 'Create', true, function (c, p) { return Admin.propertiesCreate(c, p); }),
     'admin.properties.update': route('ADMIN.PROPERTY', 'Edit', true, function (c, p) { return Admin.propertiesUpdate(c, p); }),

@@ -228,6 +228,17 @@ var Perm = (function () {
     if (property.status !== 'ACTIVE') {
       throw new PmsError('PROPERTY_SUSPENDED', 'This property is suspended', 403);
     }
+    var org = Store.get('Organizations', property.org_id);
+    if (org && org.status !== 'ACTIVE') {
+      throw new PmsError('PROPERTY_SUSPENDED', 'The organization is inactive', 403);
+    }
+    var today = Dates.now().slice(0, 10);
+    if (org && org.license_start && today < org.license_start) {
+      throw new PmsError('LICENSE_NOT_STARTED', 'The license starts on ' + org.license_start, 403);
+    }
+    if (org && org.license_end && today > org.license_end) {
+      throw new PmsError('LICENSE_EXPIRED', 'The license ended on ' + org.license_end, 403);
+    }
     return property;
   }
 

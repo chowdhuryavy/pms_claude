@@ -172,7 +172,7 @@ function bootstrap() {
   env.adminToken = login.token;
   env.call = (action, payload, token, key) =>
     g.Api.dispatch({ action, payload: payload || {}, token: token === undefined ? env.adminToken : token, idempotency_key: key });
-  const org = env.call('admin.orgs.create', { name: 'Test Hotels' });
+  const org = env.call('admin.orgs.create', { name: 'Test Hotels', license_start: '2026-01-01', license_end: '2099-12-31' });
   env.orgId = org.org_id;
   // Resend is configured by default, so user creation and resets send mail in tests.
   env.call('admin.email.save', {
