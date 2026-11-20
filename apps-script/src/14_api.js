@@ -220,6 +220,7 @@ var Api = (function () {
 
 /** Apps Script entry point for POST. Store backend is set here so every call uses Sheets. */
 function doPost(e) {
+  if (e && e.parameter && e.parameter.hook === 'github') return updaterWebhook(e);
   Store.setBackend(SheetsBackend);
   var body = e && e.postData ? e.postData.contents : '';
   var out = Api.handle(body);

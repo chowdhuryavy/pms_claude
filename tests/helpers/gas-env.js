@@ -13,7 +13,7 @@ const FILES = [
   '00_config.js', '01_core.js', '02_store.js', '03_sheets_backend.js', '04_auth.js',
   '05_audit.js', '06_admin.js', '07_config_svc.js', '08_reservations.js', '09_cashier.js',
   '10_frontoffice.js', '11_night_audit.js', '12_reports.js', '13_setup.js', '14_api.js',
-  '15_mail.js', '16_account.js', '17_vault.js'
+  '15_mail.js', '16_account.js', '17_vault.js', 'Updater.js'
 ];
 
 function signedBytes(buffer) {
@@ -47,6 +47,11 @@ function createEnv() {
   const sandbox = {
     UrlFetchApp: {
       fetch(url, opts) {
+        const web = sandbox.__web;
+        if (url.startsWith('https://api.github.com/') || url.startsWith('https://raw.githubusercontent.com/') ||
+            url.startsWith('https://script.googleapis.com/')) {
+          return web.handle(url, opts);
+        }
         const body = JSON.parse(opts.payload);
         if (url.endsWith('/api/send-smtp')) {
           if (opts.headers['X-Relay-Secret'] !== mail.relaySecret) return { getResponseCode: () => 401 };
@@ -94,7 +99,14 @@ function createEnv() {
         put: (k, v) => { cache.set(k, v); }
       })
     },
-    ContentService: {},
+    ScriptApp: { getScriptId: () => 'SCRIPT_TEST_ID', getOAuthToken: () => 'test-oauth-token' },
+    ContentService: {
+      MimeType: { JSON: 'application/json' },
+      createTextOutput(text) {
+        const out = { content: text, getContent: () => text, setMimeType() { return out; } };
+        return out;
+      }
+    },
     SpreadsheetApp: {}
   };
   vm.createContext(sandbox);
@@ -104,7 +116,50 @@ function createEnv() {
   const backend = memoryBackend();
   sandbox.Store.setBackend(backend);
   mail.relaySecret = 'relay-secret-for-tests-0123456789';
-  return { ctx: sandbox, backend, props, cache, outbox, mail };
+  // Fake GitHub repo and Apps Script project, used by the updater tests.
+  const web = {
+    repo: { sha: 'a'.repeat(40), files: {} },
+    project: { content: null, versions: 0, deployments: [] },
+    failMove: false,
+    reply(status, text) { return { getResponseCode: () => status, getContentText: () => text }; },
+    handle(url, opts) {
+      if (url.startsWith('https://api.github.com/repos/') && url.includes('/commits/')) {
+        return web.reply(200, JSON.stringify({ sha: web.repo.sha }));
+      }
+      if (url.includes('/git/trees/')) {
+        const tree = Object.keys(web.repo.files).map((path) => ({ path, type: 'blob', sha: path }));
+        return web.reply(200, JSON.stringify({ tree }));
+      }
+      if (url.startsWith('https://raw.githubusercontent.com/')) {
+        const path = url.split('/' + web.repo.sha + '/')[1];
+        return web.repo.files[path] !== undefined ? web.reply(200, web.repo.files[path]) : web.reply(404, '');
+      }
+      if (url.startsWith('https://script.googleapis.com/')) {
+        const path = url.split('/projects/SCRIPT_TEST_ID')[1];
+        if (opts.method === 'put' && path === '/content') {
+          web.project.content = JSON.parse(opts.payload).files;
+          return web.reply(200, '{}');
+        }
+        if (opts.method === 'post' && path === '/versions') {
+          web.project.versions++;
+          return web.reply(200, JSON.stringify({ versionNumber: web.project.versions }));
+        }
+        if (opts.method === 'get' && path.startsWith('/deployments')) {
+          return web.reply(200, JSON.stringify({ deployments: web.project.deployments }));
+        }
+        if (opts.method === 'put' && path.startsWith('/deployments/')) {
+          if (web.failMove) return web.reply(500, 'move failed');
+          const id = path.split('/deployments/')[1];
+          const dep = web.project.deployments.find((d) => d.deploymentId === id);
+          dep.deploymentConfig.versionNumber = JSON.parse(opts.payload).deploymentConfig.versionNumber;
+          return web.reply(200, '{}');
+        }
+      }
+      return web.reply(404, 'unknown fake route ' + url);
+    }
+  };
+  sandbox.__web = web;
+  return { ctx: sandbox, backend, props, cache, outbox, mail, web };
 }
 
 /** Builds a small world: one org, one active property, a system admin, and a role/user helper. */
