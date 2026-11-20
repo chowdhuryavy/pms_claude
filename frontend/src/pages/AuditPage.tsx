@@ -66,6 +66,7 @@ function FlashPanel() {
   const [date, setDate] = useState('');
   const flash = useApiQuery<Flash>('rpt.flash', { property_id: pid, date: date || undefined }, !!pid && !!me.grants['RPT.VIEW']?.length);
   const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const daily = useApiQuery<Daily>('rpt.daily_revenue', { property_id: pid, date: date || undefined }, !!pid && !!me.grants['RPT.VIEW']?.length);
   const f = flash.data;
   if (!me.grants['RPT.VIEW']?.length) return null;
@@ -100,8 +101,10 @@ function FlashPanel() {
       ]} />
       {daily.data && <p className="mt-2 text-sm font-medium">Total {formatMoney(daily.data.total_minor)}</p>}
       <Can fn="RPT.VIEW" level="Export">
+        {exportError && <Notice kind="error">{exportError}</Notice>}
         <Button variant="secondary" className="mt-3" loading={exporting} onClick={async () => {
           setExporting(true);
+          setExportError(null);
           try {
             const out = await callApi<{ filename: string; csv: string }>('rpt.daily_revenue_csv', { property_id: pid, date: date || undefined });
             const url = URL.createObjectURL(new Blob([out.csv], { type: 'text/csv' }));
@@ -109,7 +112,7 @@ function FlashPanel() {
             a.href = url; a.download = out.filename; a.click();
             URL.revokeObjectURL(url);
           } catch (err) {
-            setError(errorText(err));
+            setExportError(errorText(err));
           } finally {
             setExporting(false);
           }
