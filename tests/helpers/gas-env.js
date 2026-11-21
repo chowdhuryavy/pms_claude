@@ -100,7 +100,20 @@ function createEnv() {
         put: (k, v) => { cache.set(k, v); }
       })
     },
-    ScriptApp: { getScriptId: () => 'SCRIPT_TEST_ID', getOAuthToken: () => 'test-oauth-token' },
+    ScriptApp: {
+      getScriptId: () => 'SCRIPT_TEST_ID',
+      getOAuthToken: () => 'test-oauth-token',
+      newTrigger(handler) {
+        const b = {
+          timeBased() { return b; },
+          everyMinutes(n) { b.minutes = n; return b; },
+          create() { web.triggers.push({ handler, minutes: b.minutes }); return { getHandlerFunction: () => handler }; }
+        };
+        return b;
+      },
+      getProjectTriggers: () => web.triggers.map((t) => ({ getHandlerFunction: () => t.handler, _t: t })),
+      deleteTrigger(trigger) { web.triggers = web.triggers.filter((t) => t !== trigger._t); }
+    },
     ContentService: {
       MimeType: { JSON: 'application/json' },
       createTextOutput(text) {
@@ -122,6 +135,7 @@ function createEnv() {
     repo: { sha: 'a'.repeat(40), files: {} },
     project: { content: null, versions: 0, deployments: [] },
     failMove: false,
+    triggers: [],
     reply(status, text) { return { getResponseCode: () => status, getContentText: () => text }; },
     handle(url, opts) {
       if (url.startsWith('https://api.github.com/repos/') && url.includes('/commits/')) {

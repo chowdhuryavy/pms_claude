@@ -104,6 +104,7 @@ var Updater = (function () {
       var files = readFiles(cfg, sha);
       var hash = hashOf(files);
       if (hash === props.getProperty('CONTENT_HASH')) {
+        props.setProperty('LAST_SHA', sha);
         return 'No code changes in ' + sha.slice(0, 7) + '. Nothing to update.';
       }
 
@@ -128,6 +129,7 @@ var Updater = (function () {
         throw new Error('Code was updated, but ' + failed.length + ' web app link(s) did not move: ' + failed[0]);
       }
       props.setProperty('CONTENT_HASH', hash);
+      props.setProperty('LAST_SHA', sha);
       return 'Updated to GitHub ' + sha.slice(0, 7) + ' (version ' + version + ').';
     } finally {
       lock.releaseLock();
@@ -166,12 +168,48 @@ var Updater = (function () {
     }
   }
 
-  return { run: run, webhook: webhook, config: config };
+  /** Timer check (every 5 minutes). Reads only the newest commit id; loads the code only when it changed. */
+  function autoCheck() {
+    var cfg = config();
+    var props = PropertiesService.getScriptProperties();
+    var sha = JSON.parse(github(cfg, '/commits/' + encodeURIComponent(cfg.branch))).sha;
+    if (!sha || sha === props.getProperty('LAST_SHA')) return 'No new commit.';
+    return run(cfg);
+  }
+
+  return { run: run, webhook: webhook, config: config, autoCheck: autoCheck };
 })();
 
 /** Editor entry point: run once to authorize, and to update on demand. */
 function updateNow() {
   Logger.log(Updater.run(Updater.config()));
+}
+
+/**
+ * Automatic updates without a webhook. Run installAutoUpdate ONCE from the editor (Run ▸
+ * installAutoUpdate). Every 5 minutes the project checks GitHub; a new commit is loaded and
+ * the web app moves to it by itself. Run removeAutoUpdate to stop.
+ */
+function installAutoUpdate() {
+  removeAutoUpdate();
+  ScriptApp.newTrigger('autoUpdate').timeBased().everyMinutes(5).create();
+  return 'Automatic updates are on: new code pushed to GitHub goes live within about 5 minutes.';
+}
+
+function removeAutoUpdate() {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'autoUpdate') ScriptApp.deleteTrigger(t);
+  });
+  return 'Automatic updates are off.';
+}
+
+/** Runs from the 5-minute timer. Errors go to the Executions log. */
+function autoUpdate() {
+  try {
+    Logger.log(Updater.autoCheck());
+  } catch (err) {
+    console.error('AutoUpdate: ' + (err && err.message ? err.message : err));
+  }
 }
 
 /** Web app entry point for GitHub. doPost calls this when ?hook=github is present. */

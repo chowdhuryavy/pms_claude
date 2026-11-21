@@ -82,3 +82,39 @@ test('the update refuses a repo without the updater file', () => {
   assert.throws(() => env.ctx.updateNow(), /Updater.js is missing/);
   assert.equal(env.web.project.content, null);
 });
+
+test('the 5-minute timer loads a new commit without any webhook call', () => {
+  const env = setup();
+  env.ctx.updateNow();
+  assert.equal(env.web.project.versions, 1);
+  // nothing new on GitHub: the timer only reads the commit id
+  env.ctx.autoUpdate();
+  assert.equal(env.web.project.versions, 1);
+  // a new commit with changed app code: the timer publishes it
+  env.web.repo.sha = 'b'.repeat(40);
+  env.web.repo.files['apps-script/src/00_config.js'] = 'var CFG = { changed: true };';
+  env.ctx.autoUpdate();
+  assert.equal(env.web.project.versions, 2);
+  assert.equal(env.web.project.deployments[0].deploymentConfig.versionNumber, 2);
+  // the same commit again: nothing happens
+  env.ctx.autoUpdate();
+  assert.equal(env.web.project.versions, 2);
+});
+
+test('a new commit that only changes files outside the app does not make a version', () => {
+  const env = setup();
+  env.ctx.updateNow();
+  env.web.repo.sha = 'c'.repeat(40);
+  env.web.repo.files['README.md'] = 'changed readme';
+  env.ctx.autoUpdate();
+  assert.equal(env.web.project.versions, 1);
+});
+
+test('installAutoUpdate creates one 5-minute timer and removeAutoUpdate removes it', () => {
+  const env = setup();
+  env.ctx.installAutoUpdate();
+  env.ctx.installAutoUpdate();
+  assert.equal(env.web.triggers.filter((t) => t.handler === 'autoUpdate').length, 1);
+  env.ctx.removeAutoUpdate();
+  assert.equal(env.web.triggers.filter((t) => t.handler === 'autoUpdate').length, 0);
+});
