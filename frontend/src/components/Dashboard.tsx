@@ -1,6 +1,6 @@
 import { usePortal } from './Shell';
 import { useApiQuery } from '../lib/hooks';
-import { formatMoney, formatPercent, todayIso } from '../lib/format';
+import { formatDate, formatMoney, formatPercent, todayIso } from '../lib/format';
 import { Icon, type IconName } from './Icon';
 
 interface RackSummary {
@@ -54,7 +54,7 @@ export function DashboardCards() {
     <section className="mb-6">
       <div className="mb-3 flex items-baseline justify-between">
         <h2 className="text-lg font-semibold text-slate-900">Today</h2>
-        {s && <span className="text-sm text-slate-500">Business date {day}</span>}
+        {s && <span className="text-sm text-slate-500">Business date {formatDate(day)}</span>}
       </div>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {s && <Kpi icon="users" label="In house" value={s.in_house} hint={`of ${s.rooms} rooms`} tone="sky" />}

@@ -3,7 +3,7 @@ import { useState, type FormEvent } from 'react';
 import { Shell, Can, usePortal } from '../components/Shell';
 import { Button, Field, Notice, Panel, Table, inputClass, errorText } from '../components/ui';
 import { useApiAction, useApiQuery, type Page } from '../lib/hooks';
-import { addDaysIso, todayIso } from '../lib/format';
+import { addDaysIso, formatDate, todayIso } from '../lib/format';
 
 interface AvailRow { room_type_id: string; code: string; description: string; base_rate_minor: number; min_available: number }
 interface Res {
@@ -112,7 +112,7 @@ function Rack() {
   if (!me.grants['FO.RACK']?.length) return null;
   const s = rack.data?.summary;
   return (
-    <Panel title={`Room rack${s ? ` · ${s.business_date}` : ''}`}>
+    <Panel title={`Room rack${s ? ` · ${formatDate(s.business_date)}` : ''}`}>
       {error && <Notice kind="error">{error}</Notice>}
       {s && (
         <div className="mb-4 grid grid-cols-2 gap-3 text-sm md:grid-cols-4 lg:grid-cols-7">
@@ -130,7 +130,7 @@ function Rack() {
       <Table<Rack['rooms'][number]> rowKey={(r) => r.room_id} rows={rack.data?.rooms ?? []} columns={[
         { header: 'Room', render: (r) => r.room_number },
         { header: 'Type', render: (r) => r.room_type },
-        { header: 'Occupancy', render: (r) => (r.occupied ? `Occupied, leaves ${r.departure}` : 'Vacant') },
+        { header: 'Occupancy', render: (r) => (r.occupied ? `Occupied, leaves ${formatDate(r.departure)}` : 'Vacant') },
         { header: 'Housekeeping', render: (r) => (
           <Can fn="FO.HOUSEKEEPING" level="Edit" fallback={r.housekeeping_status}>
             <select className="rounded border border-slate-300 px-1 py-0.5 text-sm" value={r.housekeeping_status}
@@ -203,8 +203,8 @@ function Reservations() {
       <Table<Res> rowKey={(r) => r.res_id} rows={res.data?.items ?? []} columns={[
         { header: 'Confirmation', render: (r) => <code>{r.confirmation_no}</code> },
         { header: 'Guest', render: (r) => (r.guest ? `${r.guest.first_name} ${r.guest.last_name}` : '') },
-        { header: 'Arrival', render: (r) => r.arrival },
-        { header: 'Departure', render: (r) => r.departure },
+        { header: 'Arrival', render: (r) => formatDate(r.arrival) },
+        { header: 'Departure', render: (r) => formatDate(r.departure) },
         { header: 'Status', render: (r) => r.status },
         { header: 'Room', render: (r) => r.room_id ? 'Assigned' : '' },
         { header: '', render: (r) => <StayActions res={r} onError={setError} /> }

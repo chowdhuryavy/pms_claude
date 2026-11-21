@@ -4,7 +4,7 @@ import { Shell, Can, usePortal } from '../components/Shell';
 import { Badge, Button, Field, Notice, Panel, Table, Tabs, inputClass, errorText, type TabDef } from '../components/ui';
 import { EmailSettingsPanel } from '../components/EmailSettings';
 import { useApiAction, useApiQuery, type Page } from '../lib/hooks';
-import { normalizeMoneyInput, todayIso } from '../lib/format';
+import { formatDate, normalizeMoneyInput, todayIso } from '../lib/format';
 
 const LEVELS = ['View', 'Create', 'Edit', 'Delete', 'Approve', 'Execute', 'Export', 'Full Access'];
 const MODULES = ['CONFIG', 'RESERVATIONS', 'FRONT_OFFICE', 'CASHIERING', 'NIGHT_AUDIT', 'REPORTING', 'ENGINEERING', 'HOUSEKEEPING'];
@@ -158,8 +158,8 @@ function OrgSection() {
           </div>
           <dl className="grid gap-4 text-sm sm:grid-cols-2 md:grid-cols-4">
             <Detail label="Status">{viewing.status === 'ACTIVE' ? 'Active' : 'Inactive'}</Detail>
-            <Detail label="License start">{viewing.license_start || '—'}</Detail>
-            <Detail label="License end">{viewing.license_end || '—'}</Detail>
+            <Detail label="License start">{formatDate(viewing.license_start)}</Detail>
+            <Detail label="License end">{formatDate(viewing.license_end)}</Detail>
             <Detail label="License state">{licenseState(viewing).label}</Detail>
             <Detail label="Properties">{viewing.property_count}</Detail>
             <Detail label="ID"><code className="text-xs">{viewing.org_id}</code></Detail>
@@ -182,7 +182,7 @@ function OrgSection() {
           return (
             <div className="space-y-1">
               <Badge tone={st.tone}>{st.label}</Badge>
-              <div className="text-xs text-slate-500">{o.license_start || '—'} to {o.license_end || '—'}</div>
+              <div className="text-xs text-slate-500">{formatDate(o.license_start)} to {formatDate(o.license_end)}</div>
             </div>
           );
         } },
@@ -288,7 +288,7 @@ function PropertySection() {
       <Table<Property> rowKey={(p) => p.property_id} rows={props.data?.items ?? []} empty="No properties you can see" columns={[
         { header: 'Code', render: (p) => p.code },
         { header: 'Name', render: (p) => p.name },
-        { header: 'Business date', render: (p) => p.business_date },
+        { header: 'Business date', render: (p) => formatDate(p.business_date) },
         { header: 'Rooms licensed', align: 'right', render: (p) => p.license_rooms },
         { header: 'User limit', align: 'right', render: (p) => p.user_limit },
         { header: 'Status', render: (p) => p.status },

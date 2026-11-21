@@ -4,6 +4,7 @@ import { callApi, ApiError } from '../lib/api';
 import { clearToken, getToken } from '../lib/session';
 import { hasGrant, type Me } from '../lib/hooks';
 import { Icon, type IconName } from './Icon';
+import { formatDate } from '../lib/format';
 
 interface PropertyCtx {
   me: Me;
@@ -155,7 +156,7 @@ export function Shell({ title, children, allowWhenMustChange = false }: {
                 </select>
                 {selected && (
                   <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
-                    Business date {selected.business_date}
+                    Business date {formatDate(selected.business_date)}
                   </span>
                 )}
               </label>

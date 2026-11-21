@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Shell, Can, usePortal } from '../components/Shell';
 import { Button, Field, Notice, Panel, Table, inputClass, errorText } from '../components/ui';
 import { useApiAction, useApiQuery, type Page } from '../lib/hooks';
-import { addDaysIso, formatMoney, formatPercent, todayIso } from '../lib/format';
+import { addDaysIso, formatDate, formatMoney, formatPercent, todayIso } from '../lib/format';
 import { callApi } from '../lib/api';
 import { useConfirm } from '../components/Dialog';
 
@@ -30,12 +30,12 @@ function NightAuditPanel() {
   const s = status.data;
   return (
     <>{dialog}
-    <Panel title={`Night audit${s ? ` · business date ${s.business_date}` : ''}`} actions={
+    <Panel title={`Night audit${s ? ` · business date ${formatDate(s.business_date)}` : ''}`} actions={
       <Can fn="AUDIT.RUN" level="Execute">
         <Button loading={run.isPending} disabled={!s?.can_run} onClick={async () => {
           const ok = await ask({
             title: 'Run night audit?',
-            message: `Run night audit for ${s?.business_date}? The business date will move to the next day after it completes.`,
+            message: `Run night audit for ${formatDate(s?.business_date)}? The business date will move to the next day after it completes.`,
             okLabel: 'Run audit'
           });
           if (!ok) return;
@@ -47,7 +47,7 @@ function NightAuditPanel() {
       {error && <Notice kind="error">{error}</Notice>}
       {result && (
         <Notice kind="ok">
-          Audit complete. Rooms posted {result.run.rooms_posted}, room revenue {formatMoney(result.run.room_minor)}, tax {formatMoney(result.run.tax_minor)}, no-shows {result.run.no_shows}. Business date is now {result.next_business_date}.
+          Audit complete. Rooms posted {result.run.rooms_posted}, room revenue {formatMoney(result.run.room_minor)}, tax {formatMoney(result.run.tax_minor)}, no-shows {result.run.no_shows}. Business date is now {formatDate(result.next_business_date)}.
         </Notice>
       )}
       <Table<Check> rowKey={(c) => c.code} rows={s?.checks ?? []} columns={[

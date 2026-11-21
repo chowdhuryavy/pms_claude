@@ -32,3 +32,13 @@ export function addDaysIso(iso: string, days: number): string {
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 }
+
+/**
+ * Shows a date as dd/mm/yyyy. Accepts "2026-11-20" or a server timestamp such as
+ * "2026-11-20T00:00:00.000Z". Anything else is shown unchanged.
+ */
+export function formatDate(value: string | null | undefined): string {
+  if (!value) return '—';
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value));
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : String(value);
+}

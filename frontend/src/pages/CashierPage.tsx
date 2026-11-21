@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Shell, Can, usePortal } from '../components/Shell';
 import { Button, Field, Notice, Panel, Table, inputClass, errorText } from '../components/ui';
 import { useApiAction, useApiQuery, type Page } from '../lib/hooks';
-import { formatMoney, normalizeMoneyInput } from '../lib/format';
+import { formatDate, formatMoney, normalizeMoneyInput } from '../lib/format';
 
 interface StayRow { res_id: string; confirmation_no: string; folio_id: string; room_id: string; guest?: { first_name: string; last_name: string } | null }
 interface TxnRow { txn_id: string; code: string; kind: string; amount_minor: number; business_date: string; description: string; reverses_txn_id: string; created_at: string }
@@ -53,7 +53,7 @@ export function CashierWorkspace() {
               <div className="text-sm text-slate-500">{folio.data.folio.status}</div>
             </div>
             <Table<TxnRow> rowKey={(t) => t.txn_id} rows={folio.data.transactions} empty="No postings yet" columns={[
-              { header: 'Date', render: (t) => t.business_date },
+              { header: 'Date', render: (t) => formatDate(t.business_date) },
               { header: 'Code', render: (t) => t.code },
               { header: 'Kind', render: (t) => t.kind },
               { header: 'Description', render: (t) => t.description },
