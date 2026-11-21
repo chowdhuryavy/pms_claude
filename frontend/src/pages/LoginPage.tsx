@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { callApi } from '../lib/api';
 import { setToken, getToken } from '../lib/session';
 import { landingFor } from '../lib/nav';
-import { APP_NAME, HOTEL_NAME } from '../lib/brand';
+import { APP_NAME, HOTEL_NAME, APP_VERSION } from '../lib/brand';
 import type { Me } from '../lib/hooks';
 import { Button, Field, Notice, inputClass, errorText, SecretInput } from '../components/ui';
 import { Icon } from '../components/Icon';
@@ -30,35 +30,37 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-slate-100 via-white to-slate-200 p-6">
-      <div className="pointer-events-none absolute -left-20 -top-20 h-72 w-72 rounded-full bg-sky-200/40 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-24 -right-16 h-80 w-80 rounded-full bg-amber-200/30 blur-3xl" />
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 p-6">
+      {/* background: soft glowing shapes and a faint grid */}
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(148,163,184,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.08)_1px,transparent_1px)] bg-[size:48px_48px]" />
+      <div className="pointer-events-none absolute -left-24 -top-24 h-96 w-96 animate-pulse rounded-full bg-sky-500/25 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-32 -right-20 h-96 w-96 animate-pulse rounded-full bg-amber-400/20 blur-3xl" />
 
-      <div className="anim-fade-up relative w-full max-w-sm">
-        <div className="mb-6 text-center">
-          <span className="group mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-slate-900 text-white shadow-lg ring-4 ring-white transition duration-300 hover:-translate-y-0.5 hover:scale-105 hover:shadow-xl">
-            <Icon name="building" size={30} className="transition duration-300 group-hover:scale-110" />
+      <div className="anim-fade-up relative w-full max-w-md">
+        <div className="mb-8 text-center">
+          <span className="group mx-auto grid h-20 w-20 place-items-center rounded-3xl bg-gradient-to-br from-sky-400 to-indigo-600 text-white shadow-2xl shadow-sky-500/30 ring-4 ring-white/10 transition duration-300 hover:-translate-y-1 hover:scale-105">
+            <Icon name="building" size={36} className="transition duration-300 group-hover:scale-110" />
           </span>
-          <h2 className="mt-4 text-2xl font-bold tracking-tight text-slate-900">{HOTEL_NAME}</h2>
-          <p className="mt-1 flex items-center justify-center gap-1.5 text-sm font-medium text-slate-500">
+          <h2 className="mt-5 text-3xl font-bold tracking-tight text-white">{HOTEL_NAME}</h2>
+          <p className="mt-1.5 flex items-center justify-center gap-1.5 text-sm font-medium text-slate-400">
             <Icon name="shield" size={14} />
             {APP_NAME}
           </p>
         </div>
 
-        <form onSubmit={submit} className="anim-pop rounded-2xl bg-white p-8 shadow-xl ring-1 ring-slate-200 transition duration-300 hover:shadow-2xl">
+        <form onSubmit={submit} className="anim-pop rounded-3xl bg-white p-8 shadow-2xl ring-1 ring-white/10 transition duration-300 hover:shadow-sky-500/10">
           <div className="mb-6">
-            <h1 className="text-lg font-semibold text-slate-900">Staff sign in</h1>
-            <p className="text-sm text-slate-500">Enter the username and password your administrator gave you.</p>
+            <h1 className="text-xl font-semibold text-slate-900">Staff sign in</h1>
+            <p className="mt-1 text-sm text-slate-500">Use the username and password your administrator gave you.</p>
           </div>
 
           {error && <Notice kind="error">{error}</Notice>}
           {getToken() && <Notice kind="info">You have an active session in this tab.</Notice>}
 
-          <div className="space-y-4">
+          <div className="space-y-5">
             <Field label="Username">
               <div className="group relative">
-                <span className="pointer-events-none absolute inset-y-0 left-3 my-auto grid h-5 w-5 place-items-center text-slate-400 transition group-focus-within:text-slate-900">
+                <span className="pointer-events-none absolute inset-y-0 left-3 my-auto grid h-5 w-5 place-items-center text-slate-400 transition group-focus-within:text-sky-600">
                   <Icon name="user" size={16} />
                 </span>
                 <input className={`${inputClass} pl-10`} autoComplete="username" value={username} autoFocus
@@ -68,20 +70,19 @@ export default function LoginPage() {
             <Field label="Password">
               <SecretInput value={password} onChange={setPassword} autoComplete="current-password" required leftIcon="lock" />
             </Field>
-            <Button type="submit" loading={busy} icon="logIn" className="w-full py-2.5">
+            <Button type="submit" loading={busy} icon="logIn" className="w-full py-3 text-base">
               {busy ? 'Signing in…' : 'Sign in'}
             </Button>
-            <p className="flex items-start gap-2 rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
-              <Icon name="info" size={14} className="mt-0.5 text-slate-400" />
-              New here or using a temporary password? Sign in, and you will be asked to choose your own.
-            </p>
           </div>
         </form>
 
-        <p className="mt-6 flex items-center justify-center gap-1.5 text-xs text-slate-400">
-          <Icon name="lock" size={12} />
-          Secure access. Every action is recorded in the audit log.
-        </p>
+        <div className="mt-6 space-y-1.5 text-center text-xs text-slate-500">
+          <p className="flex items-center justify-center gap-1.5">
+            <Icon name="lock" size={12} />
+            Secure access. Every action is recorded in the audit log.
+          </p>
+          <p className="font-mono text-[11px] text-slate-600">Version {APP_VERSION}</p>
+        </div>
       </div>
     </div>
   );
