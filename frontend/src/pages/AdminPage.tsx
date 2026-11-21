@@ -7,7 +7,16 @@ import { useApiAction, useApiQuery, type Page } from '../lib/hooks';
 import { normalizeMoneyInput, todayIso } from '../lib/format';
 
 const LEVELS = ['View', 'Create', 'Edit', 'Delete', 'Approve', 'Execute', 'Export', 'Full Access'];
-const MODULES = ['CONFIG', 'RESERVATIONS', 'FRONT_OFFICE', 'CASHIERING', 'NIGHT_AUDIT', 'REPORTING'];
+const MODULES = ['CONFIG', 'RESERVATIONS', 'FRONT_OFFICE', 'CASHIERING', 'NIGHT_AUDIT', 'REPORTING', 'ENGINEERING', 'HOUSEKEEPING'];
+
+const GROUP_NAMES: Record<string, string> = {
+  ADMIN: 'Administration', APPROVAL: 'Approvals', AUDIT: 'Night audit', CASH: 'Cashiering', CFG: 'Configuration',
+  ENG: 'Engineering', FO: 'Front office', HK: 'Housekeeping', RES: 'Reservations', RPT: 'Reports'
+};
+function groupOf(fn: string): string {
+  const key = fn.split('.')[0];
+  return GROUP_NAMES[key] ?? key;
+}
 
 interface Org {
   org_id: string; name: string; status: string; license_start: string; license_end: string;
@@ -23,7 +32,8 @@ interface UserRow {
 }
 interface CreateResult { email_sent: boolean; provider: string; reason: string }
 interface Role { role_id: string; name: string; approval_limit_minor: number; is_system: string; version: number }
-interface Flag { flag_id: string; module_key: string; enabled: string }
+interface Flag { flag_id: string; module_key: string; enabled: string | boolean }
+interface PropertyCreated extends Property { admin_user_id?: string; admin_role_id?: string; admin_email_sent?: boolean }
 interface AuditRow { at: string; user_id: string; function_id: string; action: string; entity: string; entity_id: string }
 interface CatalogRow { function_id: string; label: string; module: string | null }
 interface PermRow { perm_id: string; function_id: string; levels: string }
@@ -213,41 +223,66 @@ function PropertySection() {
   const props = useApiQuery<Page<Property>>('admin.properties.list', {}, true);
   const orgs = useApiQuery<Page<Org>>('admin.orgs.list', {}, me.is_system_admin);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [form, setForm] = useState({
     org_id: '', code: '', name: '', currency: 'USD', timezone: 'UTC',
     business_date: todayIso(), license_rooms: '20', user_limit: '10'
   });
-  const create = useApiAction('admin.properties.create');
+  const [admin, setAdmin] = useState({ username: '', display_name: '', email: '' });
+  const create = useApiAction<PropertyCreated>('admin.properties.create', (data) => {
+    setError(null);
+    setNotice(
+      `Property created. Property Admin "${admin.username}" was added with the role "Property Admin ${form.code.toUpperCase()}". ` +
+      'Set what that role can do in the Permissions tab. ' +
+      (data.admin_email_sent ? 'The temporary password was emailed.' : 'The temporary password could not be emailed. Check Email settings.')
+    );
+    setAdmin({ username: '', display_name: '', email: '' });
+  });
   const setStatus = useApiAction('admin.properties.status');
 
   const submit = (e: FormEvent) => {
-    e.preventDefault(); setError(null);
+    e.preventDefault(); setError(null); setNotice(null);
     create.mutate({
       ...form,
       license_rooms: Number(form.license_rooms),
-      user_limit: Number(form.user_limit)
+      user_limit: Number(form.user_limit),
+      admin: { username: admin.username.trim().toLowerCase(), display_name: admin.display_name.trim(), email: admin.email.trim() }
     }, { onError: (err) => setError(errorText(err)) });
   };
 
   return (
     <Panel title="Properties and licensing">
       {error && <Notice kind="error">{error}</Notice>}
+      {notice && <Notice kind="ok">{notice}</Notice>}
       {me.is_system_admin && (
-        <form onSubmit={submit} className="mb-6 grid gap-3 md:grid-cols-4">
-          <Field label="Organization">
-            <select className={inputClass} required value={form.org_id} onChange={(e) => setForm({ ...form, org_id: e.target.value })}>
-              <option value="">Select</option>
-              {(orgs.data?.items ?? []).map((o) => <option key={o.org_id} value={o.org_id}>{o.name}</option>)}
-            </select>
-          </Field>
-          <Field label="Code"><input className={inputClass} required maxLength={12} value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} /></Field>
-          <Field label="Name"><input className={inputClass} required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
-          <Field label="Currency"><input className={inputClass} required maxLength={3} value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} /></Field>
-          <Field label="Timezone"><input className={inputClass} value={form.timezone} onChange={(e) => setForm({ ...form, timezone: e.target.value })} /></Field>
-          <Field label="Business date"><input type="date" className={inputClass} required value={form.business_date} onChange={(e) => setForm({ ...form, business_date: e.target.value })} /></Field>
-          <Field label="Licensed rooms"><input type="number" min={1} className={inputClass} value={form.license_rooms} onChange={(e) => setForm({ ...form, license_rooms: e.target.value })} /></Field>
-          <Field label="User limit"><input type="number" min={1} className={inputClass} value={form.user_limit} onChange={(e) => setForm({ ...form, user_limit: e.target.value })} /></Field>
-          <div className="md:col-span-4"><Button type="submit" loading={create.isPending}>Create property</Button></div>
+        <form onSubmit={submit} className="mb-6 space-y-4">
+          <div className="grid gap-3 md:grid-cols-4">
+            <Field label="Organization">
+              <select className={inputClass} required value={form.org_id} onChange={(e) => setForm({ ...form, org_id: e.target.value })}>
+                <option value="">Select</option>
+                {(orgs.data?.items ?? []).map((o) => <option key={o.org_id} value={o.org_id}>{o.name}</option>)}
+              </select>
+            </Field>
+            <Field label="Code"><input className={inputClass} required maxLength={12} value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} /></Field>
+            <Field label="Name"><input className={inputClass} required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
+            <Field label="Currency"><input className={inputClass} required maxLength={3} value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} /></Field>
+            <Field label="Timezone"><input className={inputClass} value={form.timezone} onChange={(e) => setForm({ ...form, timezone: e.target.value })} /></Field>
+            <Field label="Business date"><input type="date" className={inputClass} required value={form.business_date} onChange={(e) => setForm({ ...form, business_date: e.target.value })} /></Field>
+            <Field label="Licensed rooms"><input type="number" min={1} className={inputClass} value={form.license_rooms} onChange={(e) => setForm({ ...form, license_rooms: e.target.value })} /></Field>
+            <Field label="User limit"><input type="number" min={1} className={inputClass} value={form.user_limit} onChange={(e) => setForm({ ...form, user_limit: e.target.value })} /></Field>
+          </div>
+          <div className="rounded-lg border border-slate-200 p-4">
+            <p className="mb-3 text-sm font-semibold text-slate-800">Property Admin</p>
+            <p className="mb-3 text-xs text-slate-500">
+              This person runs the property and creates its own staff. You set their permissions in the Permissions tab after the property is created.
+            </p>
+            <div className="grid gap-3 md:grid-cols-3">
+              <Field label="Username"><input className={inputClass} required value={admin.username} onChange={(e) => setAdmin({ ...admin, username: e.target.value })} /></Field>
+              <Field label="Full name"><input className={inputClass} required value={admin.display_name} onChange={(e) => setAdmin({ ...admin, display_name: e.target.value })} /></Field>
+              <Field label="Email" hint="The temporary password is sent here."><input type="email" className={inputClass} required value={admin.email} onChange={(e) => setAdmin({ ...admin, email: e.target.value })} /></Field>
+            </div>
+          </div>
+          <Button type="submit" loading={create.isPending}>Create property</Button>
         </form>
       )}
       <Table<Property> rowKey={(p) => p.property_id} rows={props.data?.items ?? []} empty="No properties you can see" columns={[
@@ -420,54 +455,84 @@ function PermissionMatrix() {
   const [roleId, setRoleId] = useState('');
   const perms = useApiQuery<PermRow[]>('admin.permissions.role', { role_id: roleId }, !!roleId);
   const setPerm = useApiAction('admin.permissions.set');
+  // Shows a tick at once; if the server refuses, the tick goes back and the reason is shown.
+  const [draft, setDraft] = useState<Record<string, string[]>>({});
   const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState<string | null>(null);
 
-  const levelsFor = (fn: string) => {
+  const serverLevels = (fn: string) => {
     const row = (perms.data ?? []).find((p) => p.function_id === fn);
     return row ? row.levels.split(',').filter(Boolean) : [];
   };
+  const levelsFor = (fn: string) => draft[fn] ?? serverLevels(fn);
 
   const toggle = (fn: string, level: string) => {
     const current = levelsFor(fn);
     const next = current.includes(level) ? current.filter((l) => l !== level) : [...current, level];
+    setDraft((d) => ({ ...d, [fn]: next }));
     setError(null);
-    setPerm.mutate({ role_id: roleId, function_id: fn, levels: next }, { onError: (err) => setError(errorText(err)) });
+    setSaved(null);
+    setPerm.mutate({ role_id: roleId, function_id: fn, levels: next }, {
+      onSuccess: () => setSaved('Saved.'),
+      onError: (err) => {
+        setDraft((d) => { const copy = { ...d }; delete copy[fn]; return copy; });
+        setError(errorText(err));
+      }
+    });
   };
 
+  const rows = catalog.data ?? [];
+  const groups = Array.from(new Set(rows.map((c) => groupOf(c.function_id))));
+
   return (
-    <Panel title="Permission matrix" actions={
-      <select className="rounded border border-slate-300 px-2 py-1 text-sm" value={roleId} onChange={(e) => setRoleId(e.target.value)}>
-        <option value="">Select a role</option>
-        {(roles.data?.items ?? []).map((r) => <option key={r.role_id} value={r.role_id}>{r.name}</option>)}
-      </select>
-    }>
+    <Panel title="Permissions">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <select className="rounded border border-slate-300 px-3 py-2 text-sm" value={roleId}
+          onChange={(e) => { setRoleId(e.target.value); setDraft({}); setError(null); setSaved(null); }}>
+          <option value="">Select a role</option>
+          {(roles.data?.items ?? []).map((r) => <option key={r.role_id} value={r.role_id}>{r.name}</option>)}
+        </select>
+        {setPerm.isPending && <span className="text-sm text-slate-500">Saving…</span>}
+        {saved && !setPerm.isPending && <span className="text-sm text-emerald-700">{saved}</span>}
+      </div>
       {error && <Notice kind="error">{error}</Notice>}
-      {!roleId ? <p className="text-sm text-slate-500">Choose a role. Unchecked functions are hidden for that role.</p> : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead><tr className="text-left text-slate-600">
-              <th className="px-2 py-1">Function</th>
-              {LEVELS.map((l) => <th key={l} className="px-2 py-1 text-center font-medium">{l}</th>)}
-            </tr></thead>
-            <tbody>
-              {(catalog.data ?? []).map((c) => {
-                const set = levelsFor(c.function_id);
-                return (
-                  <tr key={c.function_id} className="border-t border-slate-100">
-                    <td className="px-2 py-1"><div>{c.label}</div><code className="text-xs text-slate-500">{c.function_id}</code></td>
-                    {LEVELS.map((l) => (
-                      <td key={l} className="px-2 py-1 text-center">
-                        <input type="checkbox" checked={set.includes(l) || set.includes('Full Access') && l !== 'Full Access'}
-                          onChange={() => toggle(c.function_id, l)} aria-label={`${c.label} ${l}`} />
-                      </td>
-                    ))}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      {!roleId ? (
+        <p className="text-sm text-slate-500">Choose a role. Tick the levels it may use for each function. A function with no tick is hidden for that role.</p>
+      ) : groups.map((g) => (
+        <div key={g} className="mb-6">
+          <h4 className="mb-2 text-sm font-semibold text-slate-800">{g}</h4>
+          <div className="overflow-x-auto rounded border border-slate-200">
+            <table className="min-w-full text-sm">
+              <thead className="bg-slate-50 text-left text-slate-600">
+                <tr>
+                  <th className="px-3 py-2">Function</th>
+                  {LEVELS.map((l) => <th key={l} className="px-2 py-2 text-center font-medium">{l}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.filter((c) => groupOf(c.function_id) === g).map((c) => {
+                  const set = levelsFor(c.function_id);
+                  return (
+                    <tr key={c.function_id} className="border-t border-slate-100">
+                      <td className="px-3 py-2"><div>{c.label}</div><code className="text-xs text-slate-500">{c.function_id}</code></td>
+                      {LEVELS.map((l) => {
+                        const on = set.includes(l) || (set.includes('Full Access') && l !== 'Full Access');
+                        return (
+                          <td key={l} className="px-2 py-2 text-center">
+                            <input type="checkbox" className="h-4 w-4 cursor-pointer accent-slate-900" checked={on}
+                              disabled={setPerm.isPending && setPerm.variables?.function_id === c.function_id}
+                              onChange={() => toggle(c.function_id, l)} aria-label={`${c.label} ${l}`} />
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
-      )}
+      ))}
     </Panel>
   );
 }
@@ -479,20 +544,24 @@ function FlagSection() {
   const flags = useApiQuery<Flag[]>('admin.flags.list', { property_id: propertyId }, !!propertyId);
   const setFlag = useApiAction('admin.flags.set');
   const [error, setError] = useState<string | null>(null);
-  const enabled = new Set((flags.data ?? []).filter((f) => f.enabled === 'true').map((f) => f.module_key));
+  // The sheet can hand back the text "true" or a real TRUE value; both mean on.
+  const isOn = (v: string | boolean) => String(v).toLowerCase() === 'true';
+  const enabled = new Set((flags.data ?? []).filter((f) => isOn(f.enabled)).map((f) => f.module_key));
   return (
-    <Panel title="Module availability">
+    <Panel title="Modules">
       {error && <Notice kind="error">{error}</Notice>}
-      <select className="mb-4 rounded border border-slate-300 px-2 py-1 text-sm" value={propertyId} onChange={(e) => setPropertyId(e.target.value)}>
+      <p className="mb-4 text-sm text-slate-500">Turn a module on or off for one property. Off hides it from every user of that property.</p>
+      <select className="mb-4 rounded border border-slate-300 px-3 py-2 text-sm" value={propertyId} onChange={(e) => { setPropertyId(e.target.value); setError(null); }}>
         <option value="">Select a property</option>
         {(props.data?.items ?? []).map((p) => <option key={p.property_id} value={p.property_id}>{p.code} · {p.name}</option>)}
       </select>
       {propertyId && (
         <div className="grid gap-2 md:grid-cols-3">
           {MODULES.map((m) => (
-            <label key={m} className="flex items-center justify-between rounded border border-slate-200 px-3 py-2 text-sm">
-              {m}
-              <input type="checkbox" disabled={!me.is_system_admin} checked={enabled.has(m)}
+            <label key={m} className="flex cursor-pointer items-center justify-between rounded border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50">
+              <span>{m.replace('_', ' ')}</span>
+              <input type="checkbox" className="h-4 w-4 cursor-pointer accent-slate-900" disabled={!me.is_system_admin || setFlag.isPending}
+                checked={enabled.has(m)}
                 onChange={(e) => setFlag.mutate({ property_id: propertyId, module_key: m, enabled: e.target.checked },
                   { onError: (err) => setError(errorText(err)) })} />
             </label>

@@ -4,6 +4,7 @@ import { Button, Field, Notice, Panel, Table, inputClass, errorText } from '../c
 import { useApiAction, useApiQuery, type Page } from '../lib/hooks';
 import { addDaysIso, formatMoney, formatPercent, todayIso } from '../lib/format';
 import { callApi } from '../lib/api';
+import { useConfirm } from '../components/Dialog';
 
 interface Check { code: string; ok: boolean; count: number; message: string }
 interface AuditStatus { business_date: string; checks: Check[]; can_run: boolean; last_runs: Array<{ run_id: string; status: string; error: string; rooms_posted: number; room_minor: number; tax_minor: number }> }
@@ -24,13 +25,20 @@ function NightAuditPanel() {
   const run = useApiAction<RunResult>('audit.run');
   const [result, setResult] = useState<RunResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [dialog, ask] = useConfirm();
   if (!me.grants['AUDIT.RUN']?.length) return null;
   const s = status.data;
   return (
+    <>{dialog}
     <Panel title={`Night audit${s ? ` · business date ${s.business_date}` : ''}`} actions={
       <Can fn="AUDIT.RUN" level="Execute">
-        <Button loading={run.isPending} disabled={!s?.can_run} onClick={() => {
-          if (!window.confirm(`Run night audit for ${s?.business_date}? The business date will move to the next day after it completes.`)) return;
+        <Button loading={run.isPending} disabled={!s?.can_run} onClick={async () => {
+          const ok = await ask({
+            title: 'Run night audit?',
+            message: `Run night audit for ${s?.business_date}? The business date will move to the next day after it completes.`,
+            okLabel: 'Run audit'
+          });
+          if (!ok) return;
           setError(null);
           run.mutate({ property_id: pid }, { onSuccess: (r) => setResult(r), onError: (e) => setError(errorText(e)) });
         }}>Run audit</Button>
@@ -56,7 +64,7 @@ function NightAuditPanel() {
           </ul>
         </div>
       )}
-    </Panel>
+    </Panel></>
   );
 }
 

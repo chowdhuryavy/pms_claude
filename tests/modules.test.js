@@ -311,3 +311,41 @@ test('an expired license blocks the organization properties', () => {
   assert.throws(() => env.call('res.availability', { property_id: h.pid, arrival: DAY, departure: '2026-11-22' }),
     { code: 'LICENSE_EXPIRED' });
 });
+
+test('creating a property adds its Property Admin, who only gets what the System Administrator grants', () => {
+  const env = bootstrap();
+  const prop = makeProperty(env, { admin: { username: 'hq.admin', display_name: 'HQ Admin', email: 'hq.admin@example.com' } });
+  assert.ok(prop.admin_user_id);
+  assert.ok(prop.admin_role_id);
+  const role = env.call('admin.roles.list', {}).items.find((r) => r.role_id === prop.admin_role_id);
+  assert.equal(role.name, 'Property Admin HQ1');
+
+  // the new admin signs in with the temporary password and sets their own
+  const temp = env.tempPassword('hq.admin');
+  const first = login(env, 'hq.admin', temp);
+  env.call('auth.change_password', { current_password: temp, new_password: 'Admin-Pass-123' }, first);
+  const token = login(env, 'hq.admin', 'Admin-Pass-123');
+
+  // no permissions yet: cannot create users
+  assert.throws(() => env.call('admin.users.create', {
+    username: 'desk1', display_name: 'Desk', email: 'desk1@example.com',
+    role_ids: [prop.admin_role_id], property_ids: [prop.property_id]
+  }, token), { code: 'NOT_FOUND' });   // hidden until granted
+
+  // the System Administrator grants user creation on the role
+  env.call('admin.permissions.set', { role_id: prop.admin_role_id, function_id: 'ADMIN.USER', levels: ['View', 'Create', 'Edit'] });
+  const created = env.call('admin.users.create', {
+    username: 'desk1', display_name: 'Desk', email: 'desk1@example.com',
+    role_ids: [prop.admin_role_id], property_ids: [prop.property_id]
+  }, token);
+  assert.ok(created.user_id);
+});
+
+test('a bad Property Admin entry stops the property from being created at all', () => {
+  const env = bootstrap();
+  assert.throws(() => makeProperty(env, { code: 'BAD1', admin: { username: 'x y', display_name: 'X', email: 'x@example.com' } }),
+    { code: 'VALIDATION' });
+  assert.throws(() => makeProperty(env, { code: 'BAD2', admin: { username: 'okname', display_name: 'X', email: 'not-an-email' } }),
+    { code: 'VALIDATION' });
+  assert.equal(env.call('admin.properties.list', {}).items.filter((p) => p.code === 'BAD1' || p.code === 'BAD2').length, 0);
+});

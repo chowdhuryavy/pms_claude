@@ -145,6 +145,23 @@ var Admin = (function () {
     }
     var currency = Validate.text(p.currency || CFG.CURRENCY_DEFAULT || 'USD', 'currency', 3).toUpperCase();
     var businessDate = Dates.assertIsoDate(p.business_date, 'business_date');
+    // Checked before anything is saved, so a bad admin entry never leaves a half-made property.
+    var adminIn = p.admin || null;
+    var adminPlan = null;
+    if (adminIn) {
+      var adminUsername = Validate.text(adminIn.username, 'admin username', 80).toLowerCase();
+      if (!/^[a-z0-9._-]+$/.test(adminUsername)) throw new PmsError('VALIDATION', 'Admin username may use letters, digits, . _ -');
+      if (Store.list('Users', function (u) { return String(u.username).toLowerCase() === adminUsername; }).length) {
+        throw new PmsError('DUPLICATE', 'Username already exists', 409);
+      }
+      var adminEmail = Validate.email(adminIn.email);
+      if (!adminEmail) throw new PmsError('VALIDATION', 'Admin email is required, so the temporary password can be sent');
+      adminPlan = {
+        username: adminUsername,
+        display_name: Validate.text(adminIn.display_name, 'admin display_name', 120),
+        email: adminEmail
+      };
+    }
     var row = Store.insert('Properties', {
       org_id: orgId,
       code: code,
@@ -162,7 +179,24 @@ var Admin = (function () {
     });
     Setup.seedDefaultCodes(row.property_id, ctx.user.user_id);
     Audit.record(ctx, 'ADMIN.PROPERTY', 'CREATE', 'Properties', row.property_id, null, row, row.property_id);
-    return Store.publicRow(row);
+    var out = Store.publicRow(row);
+    if (adminPlan) {
+      // The Property Admin role starts with NO permissions. The System Administrator sets them
+      // in the Permissions tab. The admin then creates that property's own users.
+      var adminRole = Store.insert('Roles', {
+        org_id: orgId, name: 'Property Admin ' + code, is_system: 'false', approval_limit_minor: 0
+      }, ctx.user.user_id);
+      Audit.record(ctx, 'ADMIN.ROLE', 'CREATE', 'Roles', adminRole.role_id, null, adminRole, row.property_id);
+      var adminUser = usersCreate(ctx, {
+        username: adminPlan.username, display_name: adminPlan.display_name, email: adminPlan.email,
+        role_ids: adminRole.role_id, property_ids: row.property_id, org_id: orgId
+      });
+      out.admin_user_id = adminUser.user_id;
+      out.admin_role_id = adminRole.role_id;
+      out.admin_email_sent = adminUser.email_sent;
+      out.admin_provider = adminUser.provider;
+    }
+    return out;
   }
 
   function propertiesUpdate(ctx, p) {
