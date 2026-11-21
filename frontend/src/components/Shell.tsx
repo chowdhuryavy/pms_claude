@@ -5,6 +5,7 @@ import { clearToken, getToken } from '../lib/session';
 import { hasGrant, type Me } from '../lib/hooks';
 import { Icon, type IconName } from './Icon';
 import { formatDate } from '../lib/format';
+import { APP_NAME, HOTEL_NAME } from '../lib/brand';
 
 interface PropertyCtx {
   me: Me;
@@ -92,78 +93,97 @@ export function Shell({ title, children, allowWhenMustChange = false }: {
   };
 
   const linkClass = (active: boolean) =>
-    `group flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-all duration-200 hover:translate-x-0.5 hover:bg-slate-100 ${active ? 'bg-slate-900 text-white hover:bg-slate-800' : 'text-slate-700'}`;
+    `group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
+      active ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`;
+  const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join('') || 'U';
 
   return (
     <Ctx.Provider value={{ me: data, propertyId: selected?.property_id ?? null, setPropertyId }}>
-      <div className="flex min-h-screen bg-slate-50 text-slate-900">
+      <div className="min-h-screen bg-slate-100 text-slate-900">
         {navOpen && (
           <button aria-label="Close menu" onClick={() => setNavOpen(false)}
-            className="anim-fade-up fixed inset-0 z-30 bg-slate-900/40 md:hidden" />
+            className="anim-fade-up fixed inset-0 z-30 bg-slate-950/50 backdrop-blur-sm md:hidden" />
         )}
-        <aside className={`fixed inset-y-0 left-0 z-40 flex w-64 max-w-[85vw] flex-col overflow-y-auto border-r border-slate-200 bg-white p-4 shadow-xl transition-transform duration-300 md:static md:w-60 md:max-w-none md:translate-x-0 md:shadow-none ${navOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-          <div className="mb-6 flex items-center justify-between gap-2 px-2">
-            <span className="flex items-center gap-2 text-lg font-semibold">
-              <span className="grid h-8 w-8 place-items-center rounded-md bg-slate-900 text-white"><Icon name="home" size={16} /></span>
-              Hotel PMS
+
+        <aside className={`fixed inset-y-0 left-0 z-40 flex w-72 max-w-[85vw] flex-col bg-slate-950 p-5 text-slate-200 shadow-2xl transition-transform duration-300 md:translate-x-0 ${navOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+          <div className="mb-8 flex items-center gap-3 px-1">
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-sky-400 to-indigo-600 text-white shadow-lg shadow-sky-500/20">
+              <Icon name="building" size={20} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold text-white">{HOTEL_NAME}</span>
+              <span className="block truncate text-xs text-slate-400">{APP_NAME}</span>
             </span>
             <button aria-label="Close menu" onClick={() => setNavOpen(false)}
-              className="press grid h-8 w-8 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 md:hidden">
+              className="grid h-8 w-8 place-items-center rounded-md text-slate-400 transition hover:bg-white/10 hover:text-white md:hidden">
               <Icon name="x" size={18} />
             </button>
           </div>
+
+          <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Menu</p>
           <nav className="space-y-1">
             {NAV.filter((n) => n.visible(data)).map((n) => {
               const active = here === n.href;
               return (
                 <a key={n.href} href={n.href} onClick={() => setNavOpen(false)} className={linkClass(active)}>
-                  <Icon name={n.icon} size={16} className={active ? '' : 'text-slate-400 transition-colors group-hover:text-slate-800'} />
+                  <Icon name={n.icon} size={18} className={active ? 'text-sky-300' : 'text-slate-500 transition-colors group-hover:text-sky-300'} />
                   {n.label}
                 </a>
               );
             })}
           </nav>
-          <div className="mt-auto space-y-2 border-t border-slate-100 pt-4 text-xs text-slate-500">
-            <div className="px-2">Signed in as <span className="font-medium text-slate-700">{data.user.display_name}</span></div>
+
+          <div className="mt-auto space-y-1 border-t border-white/10 pt-4">
+            <div className="mb-3 flex items-center gap-3 px-2">
+              <span className="grid h-9 w-9 place-items-center rounded-full bg-sky-500/20 text-sm font-semibold text-sky-200 ring-1 ring-sky-400/30">
+                {initials(data.user.display_name)}
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium text-white">{data.user.display_name}</span>
+                <span className="block truncate text-xs text-slate-400">{data.user.username}</span>
+              </span>
+            </div>
             <a href="password.html" className={linkClass(here === 'password.html')}>
-              <Icon name="key" size={16} className="text-slate-400 group-hover:text-slate-800" />
+              <Icon name="key" size={18} className="text-slate-500 group-hover:text-sky-300" />
               Change password
             </a>
             <button onClick={signOut} className={`${linkClass(false)} w-full text-left`}>
-              <Icon name="logout" size={16} className="text-slate-400 group-hover:text-slate-800" />
+              <Icon name="logout" size={18} className="text-slate-500 group-hover:text-rose-300" />
               Sign out
             </button>
           </div>
         </aside>
-        <main className="min-w-0 flex-1 p-4 md:p-6">
-          <div className="sticky top-0 z-20 -mx-4 mb-4 flex items-center gap-3 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur md:hidden">
+
+        <div className="md:pl-72">
+          <header className="sticky top-0 z-20 flex flex-wrap items-center gap-3 border-b border-slate-200 bg-white/90 px-4 py-3 backdrop-blur md:px-8">
             <button aria-label="Open menu" onClick={() => setNavOpen(true)}
-              className="press grid h-9 w-9 place-items-center rounded-md border border-slate-300 text-slate-700 transition hover:bg-slate-100">
+              className="grid h-9 w-9 place-items-center rounded-lg border border-slate-300 text-slate-700 transition hover:bg-slate-100 md:hidden">
               <Icon name="menu" size={18} />
             </button>
-            <span className="truncate text-sm font-semibold">{title}</span>
-          </div>
-          <header className="anim-fade-up mb-6 flex flex-col gap-4 md:flex-row md:flex-wrap md:items-center md:justify-between">
-            <h1 className="text-xl font-semibold tracking-tight md:text-2xl">{title}</h1>
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate text-lg font-semibold tracking-tight md:text-xl">{title}</h1>
+              {selected && (
+                <p className="truncate text-xs text-slate-500">Business date {formatDate(selected.business_date)}</p>
+              )}
+            </div>
             {properties.length > 0 && (
-              <label className="flex w-full flex-wrap items-center gap-2 text-sm md:w-auto">
-                <span className="text-slate-600">Property</span>
-                <select className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 py-1.5 outline-none transition hover:border-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-200 md:flex-none"
-                  value={selected?.property_id ?? ''} onChange={(e) => setPropertyId(e.target.value)}>
-                  {properties.map((p) => (
-                    <option key={p.property_id} value={p.property_id}>{p.code} · {p.name}</option>
-                  ))}
-                </select>
-                {selected && (
-                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
-                    Business date {formatDate(selected.business_date)}
-                  </span>
-                )}
-              </label>
+              <select aria-label="Property"
+                className="max-w-[12rem] rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition hover:border-slate-400 focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+                value={selected?.property_id ?? ''} onChange={(e) => setPropertyId(e.target.value)}>
+                {properties.map((p) => (
+                  <option key={p.property_id} value={p.property_id}>{p.code} · {p.name}</option>
+                ))}
+              </select>
             )}
+            <span className="hidden h-9 w-9 place-items-center rounded-full bg-slate-900 text-xs font-semibold text-white sm:grid">
+              {initials(data.user.display_name)}
+            </span>
           </header>
-          {children({ me: data, propertyId: selected?.property_id ?? null, setPropertyId })}
-        </main>
+
+          <main className="anim-fade-up mx-auto max-w-7xl p-4 md:p-8">
+            {children({ me: data, propertyId: selected?.property_id ?? null, setPropertyId })}
+          </main>
+        </div>
       </div>
     </Ctx.Provider>
   );

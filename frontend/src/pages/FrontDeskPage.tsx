@@ -1,4 +1,5 @@
 import { DashboardCards } from '../components/Dashboard';
+import { RoomBoard } from '../components/RoomBoard';
 import { useState, type FormEvent } from 'react';
 import { Shell, Can, usePortal } from '../components/Shell';
 import { Button, Field, Notice, Panel, Table, inputClass, errorText } from '../components/ui';
@@ -241,6 +242,7 @@ export default function FrontDeskPage() {
       {({ propertyId }) => (propertyId ? (
         <>
           <DashboardCards />
+          <div className="mb-6"><RoomBoard /></div>
         <Rack />
           <MovementList title="arrivals" action="fo.arrivals" />
           <MovementList title="departures" action="fo.departures" />
