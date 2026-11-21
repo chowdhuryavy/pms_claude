@@ -1,3 +1,4 @@
+import { DashboardCards } from '../components/Dashboard';
 import { useState, type FormEvent } from 'react';
 import { Shell, Can, usePortal } from '../components/Shell';
 import { Button, Field, Notice, Panel, Table, inputClass, errorText } from '../components/ui';
@@ -239,7 +240,8 @@ export default function FrontDeskPage() {
     <Shell title="Front desk">
       {({ propertyId }) => (propertyId ? (
         <>
-          <Rack />
+          <DashboardCards />
+        <Rack />
           <MovementList title="arrivals" action="fo.arrivals" />
           <MovementList title="departures" action="fo.departures" />
           <Availability />
