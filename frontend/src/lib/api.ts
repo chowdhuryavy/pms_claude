@@ -14,16 +14,14 @@ export class ApiError extends Error {
   }
 }
 
-const API_URL = import.meta.env.VITE_API_URL as string | undefined;
+// Calls go to /api/pms on this site (api/pms.js forwards them to Apps Script), so no CORS header is needed.
+const API_URL = '/api/pms';
 
 export async function callApi<T = unknown>(
   action: string,
   payload: Record<string, unknown> = {},
   idempotencyKey?: string
 ): Promise<T> {
-  if (!API_URL) {
-    throw new ApiError('CONFIG', 'VITE_API_URL is not set. Copy .env.example to .env.local.');
-  }
   let res: Response;
   try {
     res = await fetch(API_URL, {
